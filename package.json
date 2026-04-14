@@ -1,0 +1,14 @@
+{
+  "name": "vertex-anthropic-pi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pi extension package to use Anthropic partner models on Google Vertex AI",
+  "keywords": ["pi-package", "vertex", "anthropic", "claude"],
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": ["./extensions"]
+  }
+}
