@@ -10,6 +10,7 @@ Registers a custom provider in pi:
 
 Default models exposed:
 
+- `claude-opus-4-7`
 - `claude-opus-4-6`
 - `claude-sonnet-4-6`
 - `claude-haiku-4-5@20251001`
@@ -47,7 +48,7 @@ pi install git:github.com/<your-org>/vertex-anthropic-pi@v0.1.0
 ## Usage
 
 ```bash
-pi --provider vertex-anthropic --model claude-opus-4-6
+pi --provider vertex-anthropic --model claude-opus-4-7
 ```
 
 List provider models:
@@ -61,7 +62,7 @@ pi --list-models | rg vertex-anthropic
 Override default model list:
 
 ```bash
-export VERTEX_ANTHROPIC_MODELS="claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5@20251001"
+export VERTEX_ANTHROPIC_MODELS="claude-opus-4-7,claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5@20251001"
 ```
 
 Token override (if needed):

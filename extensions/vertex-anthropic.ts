@@ -21,6 +21,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const DEFAULT_LOCATION = "europe-west1";
 const DEFAULT_MODELS = [
+	"claude-opus-4-7",
 	"claude-opus-4-6",
 	"claude-sonnet-4-6",
 	"claude-haiku-4-5@20251001",
