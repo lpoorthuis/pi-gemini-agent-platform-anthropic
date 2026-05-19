@@ -8,6 +8,13 @@
 - Added per-model context window / max token defaults and overrides via `VERTEX_ANTHROPIC_MODEL_LIMITS`
 - Added support for Claude-style default model env vars (`ANTHROPIC_DEFAULT_*`)
 - Added default model `claude-opus-4-7[1m]` with 1M context window metadata
+- Fixed Vertex request model ID handling so `claude-opus-4-7[1m]` maps to `claude-opus-4-7`
+- Changed default routing for `claude-opus-4-7` to prefer multi-region with regional fallback
+- Changed default routing for `claude-opus-4-7[1m]` to multi-region only
+- Improved endpoint fallback errors to include all attempted endpoints
+- Updated thinking request format to `thinking.type: adaptive` + `output_config.effort` for Claude 4.7 compatibility
+- Added multi-region env compatibility (`VERTEX_ANTHROPIC_BASE_URL`, `ANTHROPIC_VERTEX_LOCATION`) and automatic multi-region inference from base URL / `GOOGLE_CLOUD_LOCATION`
+- Updated `claude-opus-4-7` and `claude-opus-4-7[1m]` defaults to 1M context and 128k max output tokens
 
 ## 0.2.0
 

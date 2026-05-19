@@ -48,9 +48,15 @@ export GOOGLE_CLOUD_LOCATION="europe-west1"
 ```bash
 export ANTHROPIC_VERTEX_BASE_URL="https://aiplatform.eu.rep.googleapis.com/v1"
 export CLOUD_ML_REGION="eu"
-# optional alias for location if CLOUD_ML_REGION is not set:
+# optional aliases:
+# export VERTEX_ANTHROPIC_BASE_URL="https://aiplatform.eu.rep.googleapis.com/v1"
 # export VERTEX_ANTHROPIC_MULTI_LOCATION="eu"
+# export ANTHROPIC_VERTEX_LOCATION="eu"
 ```
+
+Notes:
+- If `CLOUD_ML_REGION` is omitted, the extension infers `eu` / `us` from `ANTHROPIC_VERTEX_BASE_URL` when possible.
+- If no explicit multi-region env vars are set, the extension can infer `eu` / `us` from `GOOGLE_CLOUD_LOCATION` (for example `europe-west1 -> eu`, `us-central1 -> us`).
 
 With this config, models can be routed to multi-region and fall back to regional when needed.
 
@@ -79,6 +85,9 @@ Use 1M context Opus model:
 ```bash
 pi --provider vertex-anthropic --model "claude-opus-4-7[1m]"
 ```
+
+`[1m]` is treated as a local alias and sent to Vertex as `claude-opus-4-7`.
+This alias requires multi-region routing (`eu`, `us`, or `global`) and does not use regional-only endpoints.
 
 List provider models:
 
@@ -115,7 +124,7 @@ Override per-model context window / max tokens:
 
 ```bash
 # Format: model=contextWindow:maxTokens
-export VERTEX_ANTHROPIC_MODEL_LIMITS="claude-opus-4-7[1m]=1000000:64000;claude-sonnet-4-6=200000:64000"
+export VERTEX_ANTHROPIC_MODEL_LIMITS="claude-opus-4-7[1m]=1000000:128000;claude-sonnet-4-6=200000:64000"
 ```
 
 JSON format is also supported for both overrides.
@@ -130,9 +139,10 @@ export VERTEX_ACCESS_TOKEN="..."
 
 ## Defaults for routing and limits
 
-- `claude-opus-4-7[1m]`: `multi` then `regional`, context window `1,000,000`
+- `claude-opus-4-7`: `multi` then `regional`, context window `1,000,000`, max output tokens `128,000`
+- `claude-opus-4-7[1m]`: `multi` only, context window `1,000,000`, max output tokens `128,000`
 - other default models: `regional` then `multi`, context window `200,000`
-- default `maxTokens`: `64,000` per model
+- default `maxTokens` for other models: `64,000`
 
 ## Versioning and updates
 
