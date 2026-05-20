@@ -829,7 +829,7 @@ function streamVertexAnthropic(
           low: 4096,
           medium: 10240,
           high: 20480,
-          xhigh: 32768,
+          xhigh: 65536,
         };
         const customBudget =
           options.thinkingBudgets?.[
