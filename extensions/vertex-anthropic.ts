@@ -193,10 +193,18 @@ function convertMessages(messages: Message[]) {
         if (block.type === "text" && block.text.trim()) {
           blocks.push({ type: "text", text: sanitizeSurrogates(block.text) });
         } else if (block.type === "thinking" && block.thinking.trim()) {
-          blocks.push({
-            type: "text",
-            text: sanitizeSurrogates(block.thinking),
-          });
+          if ((block as ThinkingContent).thinkingSignature) {
+            blocks.push({
+              type: "thinking",
+              thinking: sanitizeSurrogates(block.thinking),
+              signature: (block as ThinkingContent).thinkingSignature,
+            });
+          } else {
+            blocks.push({
+              type: "text",
+              text: sanitizeSurrogates(block.thinking),
+            });
+          }
         } else if (block.type === "toolCall") {
           blocks.push({
             type: "tool_use",
