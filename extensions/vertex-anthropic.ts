@@ -1101,12 +1101,7 @@ export default function (pi: ExtensionAPI) {
     const message = event.message;
     if (message?.role !== "assistant") return;
     if (message.stopReason !== "error") return;
-    if (
-      message.provider !== "agent-platform-anthropic" &&
-      message.provider !== "vertex-anthropic"
-    ) {
-      return;
-    }
+    if (message.provider !== "agent-platform-anthropic") return;
 
     const errorMessage = message.errorMessage ?? "";
     if (errorMessage.includes("context_length_exceeded")) return;
@@ -1154,16 +1149,4 @@ export default function (pi: ExtensionAPI) {
     streamSimple,
   });
 
-  // Backward-compatible provider alias for existing pi configs/scripts.
-  pi.registerProvider("vertex-anthropic", {
-    name: "Vertex Anthropic",
-    apiKey: "vertex-adc",
-    api: "vertex-anthropic-api",
-    baseUrl: "https://aiplatform.googleapis.com/v1",
-    models: models.map((model) => ({
-      ...model,
-      name: model.name.replace("Agent Platform Anthropic", "Vertex Anthropic"),
-    })),
-    streamSimple,
-  });
 }

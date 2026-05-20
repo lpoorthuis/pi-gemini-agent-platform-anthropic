@@ -10,10 +10,9 @@ POST https://LOCATION-aiplatform.googleapis.com/v1/projects/PROJECT_ID/locations
 
 ## What this provides
 
-Registers custom providers in pi:
+Registers a custom provider in pi:
 
-- `agent-platform-anthropic` — preferred name
-- `vertex-anthropic` — backward-compatible alias
+- `agent-platform-anthropic`
 
 Default models exposed:
 
@@ -89,12 +88,6 @@ pi install https://github.com/your-org/vertex-anthropic-pi.git#v0.4.0
 pi --provider agent-platform-anthropic --model claude-opus-4-7
 ```
 
-Backward-compatible provider name:
-
-```bash
-pi --provider vertex-anthropic --model claude-opus-4-7
-```
-
 Use 1M context Opus model:
 
 ```bash
@@ -106,7 +99,7 @@ pi --provider agent-platform-anthropic --model "claude-opus-4-7[1m]"
 List provider models:
 
 ```bash
-pi --list-models | rg 'agent-platform-anthropic|vertex-anthropic'
+pi --list-models | rg 'agent-platform-anthropic'
 ```
 
 ## Optional configuration

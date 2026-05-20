@@ -4,8 +4,8 @@
 
 ## 0.4.0
 
-- Rebranded the extension for Google Gemini Enterprise Agent Platform while retaining `vertex-anthropic` compatibility
-- Added preferred provider name `agent-platform-anthropic`
+- Rebranded the extension for Google Gemini Enterprise Agent Platform
+- Added provider name `agent-platform-anthropic`
 - Added Agent Platform env var aliases (`AGENT_PLATFORM_*`, `ANTHROPIC_AGENT_PLATFORM_*`) while retaining legacy Vertex env vars
 - Updated docs to clarify Claude partner models still use the Agent Platform API host `aiplatform.googleapis.com` and `:streamRawPredict`
 - Restored current documented Claude thinking request format (`thinking.type: enabled` with `budget_tokens`)
