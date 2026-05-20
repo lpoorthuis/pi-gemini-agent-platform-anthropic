@@ -149,7 +149,7 @@ The extension prefers multi-region endpoints first, then falls back to the confi
 - `claude-sonnet-4-6`: `multi` then `regional`, context window `1,000,000`, max output tokens `64,000`
 - `claude-haiku-4-5@20251001`: `multi` then `regional`, context window `200,000`, max output tokens `64,000`
 
-For reasoning, `claude-opus-4-7` uses the current Agent Platform adaptive thinking format (`thinking.type: adaptive` plus `output_config.effort`). Other Claude models use Anthropic `thinking.type: enabled` with `budget_tokens`.
+For reasoning, `claude-opus-4-7` uses the current Agent Platform adaptive thinking format (`thinking.type: adaptive` plus `output_config.effort`). Its pi `xhigh` level maps to Agent Platform effort `max`; `minimal` maps to `low`. Other Claude models use Anthropic `thinking.type: enabled` with `budget_tokens`.
 
 ## Versioning and updates
 

@@ -8,6 +8,7 @@
 - Changed all default model routing to prefer multi-region before regional fallback
 - Added regional fallback for multi-region quota exhaustion (`429`) responses
 - Switched `claude-opus-4-7` reasoning requests to Agent Platform adaptive thinking format
+- Mapped `claude-opus-4-7` pi `xhigh` reasoning to Agent Platform effort `max`
 
 ## 0.4.0
 

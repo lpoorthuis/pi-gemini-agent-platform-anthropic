@@ -636,14 +636,16 @@ function usesAdaptiveThinking(modelId: string): boolean {
   return resolveVertexRequestModelId(modelId) === "claude-opus-4-7";
 }
 
-function mapReasoningEffort(reasoning: string): "low" | "medium" | "high" {
+function mapReasoningEffort(reasoning: string): "low" | "medium" | "high" | "max" {
   switch (reasoning) {
     case "minimal":
     case "low":
       return "low";
     case "high":
-    case "xhigh":
       return "high";
+    case "max":
+    case "xhigh":
+      return "max";
     default:
       return "medium";
   }
@@ -1081,6 +1083,7 @@ export default function (pi: ExtensionAPI) {
       id,
       name: `Agent Platform Anthropic: ${id}`,
       reasoning: true,
+      thinkingLevelMap: usesAdaptiveThinking(id) ? { minimal: "low", xhigh: "max" } : undefined,
       input: ["text", "image"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: limits.contextWindow,
