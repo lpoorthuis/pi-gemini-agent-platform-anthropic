@@ -617,8 +617,8 @@ function buildVertexStreamUrl(
   return `${endpoint.baseUrl}/projects/${project}/locations/${endpoint.location}/publishers/anthropic/models/${encodedModelId}:streamRawPredict`;
 }
 
-function isModelUnavailableAtEndpoint(status: number, bodyText: string): boolean {
-  if (status === 404) return true;
+function isRetryableAtNextEndpoint(status: number, bodyText: string): boolean {
+  if (status === 404 || status === 429) return true;
   if (status !== 400 && status !== 403) return false;
 
   const text = bodyText.toLowerCase();
@@ -630,6 +630,23 @@ function isModelUnavailableAtEndpoint(status: number, bodyText: string): boolean
     text.includes("invalid endpoint name") ||
     (text.includes("model") && text.includes("location") && text.includes("supported"))
   );
+}
+
+function usesAdaptiveThinking(modelId: string): boolean {
+  return resolveVertexRequestModelId(modelId) === "claude-opus-4-7";
+}
+
+function mapReasoningEffort(reasoning: string): "low" | "medium" | "high" {
+  switch (reasoning) {
+    case "minimal":
+    case "low":
+      return "low";
+    case "high":
+    case "xhigh":
+      return "high";
+    default:
+      return "medium";
+  }
 }
 
 async function postVertexStreamWithFallback(
@@ -678,7 +695,7 @@ async function postVertexStreamWithFallback(
     attempts.push(`${endpointLabel} -> ${response.status} ${text}`);
 
     const canTryNextEndpoint =
-      i < endpoints.length - 1 && isModelUnavailableAtEndpoint(response.status, text);
+      i < endpoints.length - 1 && isRetryableAtNextEndpoint(response.status, text);
     if (canTryNextEndpoint) continue;
     break;
   }
@@ -777,19 +794,24 @@ function streamVertexAnthropic(
       addPromptCaching(body);
 
       if (options?.reasoning && model.reasoning) {
-        const defaultBudgets: Record<string, number> = {
-          minimal: 1024,
-          low: 4096,
-          medium: 10240,
-          high: 20480,
-          xhigh: 65536,
-        };
-        const customBudget =
-          options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets];
-        body.thinking = {
-          type: "enabled",
-          budget_tokens: customBudget ?? defaultBudgets[options.reasoning] ?? 10240,
-        };
+        if (usesAdaptiveThinking(model.id)) {
+          body.thinking = { type: "adaptive" };
+          body.output_config = { effort: mapReasoningEffort(options.reasoning) };
+        } else {
+          const defaultBudgets: Record<string, number> = {
+            minimal: 1024,
+            low: 4096,
+            medium: 10240,
+            high: 20480,
+            xhigh: 65536,
+          };
+          const customBudget =
+            options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets];
+          body.thinking = {
+            type: "enabled",
+            budget_tokens: customBudget ?? defaultBudgets[options.reasoning] ?? 10240,
+          };
+        }
       }
 
       const response = await postVertexStreamWithFallback(endpoints, {

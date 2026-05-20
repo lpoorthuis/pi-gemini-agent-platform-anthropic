@@ -6,6 +6,8 @@
 - Updated `claude-opus-4-6` max output tokens to `128,000`
 - Updated `claude-haiku-4-5@20251001` context window to `200,000` input tokens
 - Changed all default model routing to prefer multi-region before regional fallback
+- Added regional fallback for multi-region quota exhaustion (`429`) responses
+- Switched `claude-opus-4-7` reasoning requests to Agent Platform adaptive thinking format
 
 ## 0.4.0
 
