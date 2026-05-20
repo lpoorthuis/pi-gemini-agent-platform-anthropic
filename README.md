@@ -78,7 +78,9 @@ Notes:
 ## Install
 
 ```bash
-pi install /Users/A19D46E/workspace/lpoorth/vertex-anthropic-pi
+pi install ./vertex-anthropic-pi
+# or install from a pinned git tag:
+pi install https://github.com/your-org/vertex-anthropic-pi.git#v0.4.0
 ```
 
 ## Usage
