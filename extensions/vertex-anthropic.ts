@@ -22,14 +22,14 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const DEFAULT_LOCATION = "europe-west1";
 const DEFAULT_MULTI_LOCATION = "global";
 const DEFAULT_CONTEXT_WINDOW = 500000;
+const HAIKU_CONTEXT_WINDOW = 200000;
 const ONE_MILLION_CONTEXT_WINDOW = 1000000;
 const DEFAULT_MAX_TOKENS = 64000;
-const OPUS_47_MAX_TOKENS = 128000;
+const OPUS_MAX_TOKENS = 128000;
 const VERTEX_OVERFLOW_PATTERN = /token limit|context.*exceed|too many tokens/i;
 
 const DEFAULT_MODELS = [
   "claude-opus-4-7",
-  "claude-opus-4-7[1m]",
   "claude-opus-4-6",
   "claude-sonnet-4-6",
   "claude-haiku-4-5@20251001",
@@ -58,31 +58,27 @@ interface RuntimeConfig {
 const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
   "claude-opus-4-7": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: OPUS_47_MAX_TOKENS,
-  },
-  "claude-opus-4-7[1m]": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: OPUS_47_MAX_TOKENS,
+    maxTokens: OPUS_MAX_TOKENS,
   },
   "claude-opus-4-6": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: DEFAULT_MAX_TOKENS,
+    maxTokens: OPUS_MAX_TOKENS,
   },
   "claude-sonnet-4-6": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: DEFAULT_MAX_TOKENS,
   },
   "claude-haiku-4-5@20251001": {
-    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    contextWindow: HAIKU_CONTEXT_WINDOW,
     maxTokens: DEFAULT_MAX_TOKENS,
   },
 };
 
 const DEFAULT_MODEL_ENDPOINT_ORDER: Record<string, EndpointProfileName[]> = {
-  "claude-opus-4-7": ["multi"],
-  "claude-opus-4-6": ["regional", "multi"],
-  "claude-sonnet-4-6": ["regional", "multi"],
-  "claude-haiku-4-5@20251001": ["regional", "multi"],
+  "claude-opus-4-7": ["multi", "regional"],
+  "claude-opus-4-6": ["multi", "regional"],
+  "claude-sonnet-4-6": ["multi", "regional"],
+  "claude-haiku-4-5@20251001": ["multi", "regional"],
 };
 
 function dedupe<T>(values: T[]): T[] {
@@ -595,7 +591,7 @@ function resolveEndpointOrderForModel(
 
   const defaultOrder =
     DEFAULT_MODEL_ENDPOINT_ORDER[modelId] ||
-    (isOneMillionModelAlias(modelId) ? ["multi"] : ["regional", "multi"]);
+    (isOneMillionModelAlias(modelId) ? ["multi"] : ["multi", "regional"]);
 
   const defaultProfiles = dedupe(defaultOrder)
     .map((name) => endpointProfiles[name])
@@ -607,7 +603,7 @@ function resolveEndpointOrderForModel(
     return multiProfile ? [multiProfile] : [];
   }
 
-  return (["regional", "multi"] as EndpointProfileName[])
+  return (["multi", "regional"] as EndpointProfileName[])
     .map((name) => endpointProfiles[name])
     .filter(Boolean) as VertexEndpointProfile[];
 }

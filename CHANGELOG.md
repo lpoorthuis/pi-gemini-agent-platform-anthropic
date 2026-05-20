@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Removed the default `claude-opus-4-7[1m]` alias model
+- Updated `claude-opus-4-6` max output tokens to `128,000`
+- Updated `claude-haiku-4-5@20251001` context window to `200,000` input tokens
+- Changed all default model routing to prefer multi-region before regional fallback
+
 ## 0.4.0
 
 - Rebranded the extension for Google Gemini Enterprise Agent Platform
@@ -14,14 +19,11 @@
 - Added per-model endpoint override via `VERTEX_ANTHROPIC_MODEL_ENDPOINTS`
 - Added per-model context window / max token defaults and overrides via `VERTEX_ANTHROPIC_MODEL_LIMITS`
 - Added support for Claude-style default model env vars (`ANTHROPIC_DEFAULT_*`)
-- Added default model `claude-opus-4-7[1m]` with 1M context window metadata
-- Fixed Vertex request model ID handling so `claude-opus-4-7[1m]` maps to `claude-opus-4-7`
 - Changed default routing for `claude-opus-4-7` to prefer multi-region with regional fallback
-- Changed default routing for `claude-opus-4-7[1m]` to multi-region only
 - Improved endpoint fallback errors to include all attempted endpoints
 - Updated thinking request format to current documented Claude `thinking.type: enabled` + `budget_tokens` format
 - Added multi-region env compatibility (`VERTEX_ANTHROPIC_BASE_URL`, `ANTHROPIC_VERTEX_LOCATION`) and automatic multi-region inference from base URL / `GOOGLE_CLOUD_LOCATION`
-- Updated `claude-opus-4-7` and `claude-opus-4-7[1m]` defaults to 1M context and 128k max output tokens
+- Updated `claude-opus-4-7` default to 1M context and 128k max output tokens
 
 ## 0.2.0
 

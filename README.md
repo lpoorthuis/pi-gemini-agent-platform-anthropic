@@ -17,7 +17,6 @@ Registers a custom provider in pi:
 Default models exposed:
 
 - `claude-opus-4-7`
-- `claude-opus-4-7[1m]`
 - `claude-opus-4-6`
 - `claude-sonnet-4-6`
 - `claude-haiku-4-5@20251001`
@@ -88,14 +87,6 @@ pi install https://github.com/your-org/vertex-anthropic-pi.git#v0.4.0
 pi --provider agent-platform-anthropic --model claude-opus-4-7
 ```
 
-Use 1M context Opus model:
-
-```bash
-pi --provider agent-platform-anthropic --model "claude-opus-4-7[1m]"
-```
-
-`[1m]` is treated as a local alias and sent to Google as `claude-opus-4-7`. This alias requires multi-region/global routing and does not use regional-only endpoints.
-
 List provider models:
 
 ```bash
@@ -107,15 +98,15 @@ pi --list-models | rg 'agent-platform-anthropic'
 Override default model list:
 
 ```bash
-export AGENT_PLATFORM_ANTHROPIC_MODELS="claude-opus-4-7,claude-opus-4-7[1m],claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5@20251001"
+export AGENT_PLATFORM_ANTHROPIC_MODELS="claude-opus-4-7,claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5@20251001"
 # legacy name also supported:
-export VERTEX_ANTHROPIC_MODELS="claude-opus-4-7,claude-opus-4-7[1m],claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5@20251001"
+export VERTEX_ANTHROPIC_MODELS="claude-opus-4-7,claude-opus-4-6,claude-sonnet-4-6,claude-haiku-4-5@20251001"
 ```
 
 If no explicit model list is set, the extension also reads Claude-style defaults when present:
 
 ```bash
-export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-opus-4-7[1m]"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="claude-opus-4-7"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-4-6"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-haiku-4-5@20251001"
 export ANTHROPIC_SMALL_FAST_MODEL="claude-haiku-4-5@20251001"
@@ -126,14 +117,14 @@ Override per-model endpoint routing:
 ```bash
 # Format: model=endpoints (pipe-separated order)
 # Endpoints: regional | multi
-export AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS="claude-opus-4-7[1m]=multi;claude-sonnet-4-6=regional|multi"
+export AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS="claude-opus-4-7=multi;claude-sonnet-4-6=multi|regional"
 ```
 
 Override per-model context window / max tokens:
 
 ```bash
 # Format: model=contextWindow:maxTokens
-export AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS="claude-opus-4-7[1m]=1000000:128000;claude-sonnet-4-6=1000000:64000"
+export AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS="claude-opus-4-7=1000000:128000;claude-sonnet-4-6=1000000:64000"
 ```
 
 JSON format is also supported for both overrides. Legacy `VERTEX_ANTHROPIC_MODEL_ENDPOINTS` and `VERTEX_ANTHROPIC_MODEL_LIMITS` are still supported.
@@ -150,12 +141,10 @@ export VERTEX_ACCESS_TOKEN="..."
 
 ## Defaults for routing and limits
 
-- `claude-opus-4-7`: `multi`, context window `1,000,000`, max output tokens `128,000`
-- `claude-opus-4-7[1m]`: `multi` only, context window `1,000,000`, max output tokens `128,000`
-- `claude-opus-4-6`: `regional` then `multi`, context window `1,000,000`
-- `claude-sonnet-4-6`: `regional` then `multi`, context window `1,000,000`
-- `claude-haiku-4-5@20251001`: `regional` then `multi`, context window `500,000`
-- default `maxTokens` for non-Opus-4.7 models: `64,000`
+- `claude-opus-4-7`: `multi` then `regional`, context window `1,000,000`, max output tokens `128,000`
+- `claude-opus-4-6`: `multi` then `regional`, context window `1,000,000`, max output tokens `128,000`
+- `claude-sonnet-4-6`: `multi` then `regional`, context window `1,000,000`, max output tokens `64,000`
+- `claude-haiku-4-5@20251001`: `multi` then `regional`, context window `200,000`, max output tokens `64,000`
 
 ## Versioning and updates
 
