@@ -4,6 +4,12 @@
   "private": true,
   "description": "Pi extension package to use Anthropic partner models on Google Gemini Enterprise Agent Platform",
   "keywords": ["pi-package", "agent-platform", "vertex", "anthropic", "claude"],
+  "scripts": {
+    "format": "node -e \"console.log('No formatter configured')\"",
+    "lint": "node -e \"JSON.parse(require('fs').readFileSync('package.json', 'utf8')); console.log('No linter configured')\"",
+    "lint:fix": "npm run lint",
+    "test": "node -e \"console.log('No tests configured')\""
+  },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*"
