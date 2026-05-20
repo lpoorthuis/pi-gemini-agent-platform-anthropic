@@ -5,8 +5,8 @@
   "description": "Pi extension package to use Anthropic partner models on Google Gemini Enterprise Agent Platform",
   "keywords": ["pi-package", "agent-platform", "vertex", "anthropic", "claude"],
   "peerDependencies": {
-    "@mariozechner/pi-ai": "*",
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
   },
   "pi": {
     "extensions": ["./extensions"]
