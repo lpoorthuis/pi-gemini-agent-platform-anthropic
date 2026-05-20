@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.0
+
+- Rebranded the extension for Google Gemini Enterprise Agent Platform while retaining `vertex-anthropic` compatibility
+- Added preferred provider name `agent-platform-anthropic`
+- Added Agent Platform env var aliases (`AGENT_PLATFORM_*`, `ANTHROPIC_AGENT_PLATFORM_*`) while retaining legacy Vertex env vars
+- Updated docs to clarify Claude partner models still use the Agent Platform API host `aiplatform.googleapis.com` and `:streamRawPredict`
+- Restored current documented Claude thinking request format (`thinking.type: enabled` with `budget_tokens`)
 - Added dual endpoint routing support (multi-region + regional fallback) per model
 - Added support for `ANTHROPIC_VERTEX_BASE_URL` (e.g. EU REP endpoint) with `CLOUD_ML_REGION`
 - Added per-model endpoint override via `VERTEX_ANTHROPIC_MODEL_ENDPOINTS`
@@ -12,7 +19,7 @@
 - Changed default routing for `claude-opus-4-7` to prefer multi-region with regional fallback
 - Changed default routing for `claude-opus-4-7[1m]` to multi-region only
 - Improved endpoint fallback errors to include all attempted endpoints
-- Updated thinking request format to `thinking.type: adaptive` + `output_config.effort` for Claude 4.7 compatibility
+- Updated thinking request format to current documented Claude `thinking.type: enabled` + `budget_tokens` format
 - Added multi-region env compatibility (`VERTEX_ANTHROPIC_BASE_URL`, `ANTHROPIC_VERTEX_LOCATION`) and automatic multi-region inference from base URL / `GOOGLE_CLOUD_LOCATION`
 - Updated `claude-opus-4-7` and `claude-opus-4-7[1m]` defaults to 1M context and 128k max output tokens
 
