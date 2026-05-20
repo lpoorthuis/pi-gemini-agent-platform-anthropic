@@ -51,10 +51,7 @@ interface ModelLimits {
 type ModelLimitsOverride = Partial<ModelLimits>;
 
 interface RuntimeConfig {
-  endpointProfiles: Record<
-    EndpointProfileName,
-    VertexEndpointProfile | undefined
-  >;
+  endpointProfiles: Record<EndpointProfileName, VertexEndpointProfile | undefined>;
   endpointOverrides: Record<string, EndpointProfileName[]>;
 }
 
@@ -134,9 +131,7 @@ function mapStopReason(reason: string): StopReason {
 function convertContentBlocks(content: (TextContent | ImageContent)[]) {
   const hasImages = content.some((c) => c.type === "image");
   if (!hasImages) {
-    return sanitizeSurrogates(
-      content.map((c) => (c as TextContent).text).join("\n"),
-    );
+    return sanitizeSurrogates(content.map((c) => (c as TextContent).text).join("\n"));
   }
 
   const blocks = content.map((block) => {
@@ -215,8 +210,7 @@ function convertMessages(messages: Message[]) {
           });
         }
       }
-      if (blocks.length > 0)
-        params.push({ role: "assistant", content: blocks });
+      if (blocks.length > 0) params.push({ role: "assistant", content: blocks });
     } else if (msg.role === "toolResult") {
       const toolResults: any[] = [
         {
@@ -265,9 +259,7 @@ function applyEphemeralCacheControl(block: any) {
 
 function addPromptCaching(body: any) {
   if (typeof body.system === "string") {
-    body.system = [
-      applyEphemeralCacheControl({ type: "text", text: body.system }),
-    ];
+    body.system = [applyEphemeralCacheControl({ type: "text", text: body.system })];
   } else if (Array.isArray(body.system) && body.system.length > 0) {
     body.system[body.system.length - 1] = applyEphemeralCacheControl(
       body.system[body.system.length - 1],
@@ -279,9 +271,7 @@ function addPromptCaching(body: any) {
     if (message.role !== "user") continue;
 
     if (typeof message.content === "string") {
-      message.content = [
-        applyEphemeralCacheControl({ type: "text", text: message.content }),
-      ];
+      message.content = [applyEphemeralCacheControl({ type: "text", text: message.content })];
     } else if (Array.isArray(message.content) && message.content.length > 0) {
       message.content[message.content.length - 1] = applyEphemeralCacheControl(
         message.content[message.content.length - 1],
@@ -298,15 +288,10 @@ function resolveAccessToken(): string {
     process.env.VERTEX_ACCESS_TOKEN;
   if (envToken?.trim()) return envToken.trim();
 
-  const token = execFileSync(
-    "gcloud",
-    ["auth", "application-default", "print-access-token"],
-    {
-      encoding: "utf8",
-    },
-  ).trim();
-  if (!token)
-    throw new Error("Could not resolve a Google access token from ADC.");
+  const token = execFileSync("gcloud", ["auth", "application-default", "print-access-token"], {
+    encoding: "utf8",
+  }).trim();
+  if (!token) throw new Error("Could not resolve a Google access token from ADC.");
   return token;
 }
 
@@ -325,19 +310,13 @@ function looksLikeMultiRegion(location: string): boolean {
   return normalized === "global" || /^[a-z]{2}$/.test(normalized);
 }
 
-function inferMultiLocationFromBaseUrl(
-  baseUrl: string | undefined,
-): string | undefined {
+function inferMultiLocationFromBaseUrl(baseUrl: string | undefined): string | undefined {
   if (!baseUrl?.trim()) return undefined;
   try {
-    const candidate = /^https?:\/\//i.test(baseUrl)
-      ? baseUrl
-      : `https://${baseUrl}`;
+    const candidate = /^https?:\/\//i.test(baseUrl) ? baseUrl : `https://${baseUrl}`;
     const host = new URL(candidate).hostname.toLowerCase();
     if (host === "aiplatform.googleapis.com") return "global";
-    const repHostMatch = host.match(
-      /^aiplatform\.([a-z0-9-]+)\.rep\.googleapis\.com$/i,
-    );
+    const repHostMatch = host.match(/^aiplatform\.([a-z0-9-]+)\.rep\.googleapis\.com$/i);
     if (repHostMatch?.[1]) return repHostMatch[1].toLowerCase();
   } catch {
     return undefined;
@@ -370,11 +349,7 @@ function resolveRegionalLocation(): string {
     process.env.ANTHROPIC_VERTEX_BASE_URL?.trim() ||
     process.env.VERTEX_ANTHROPIC_BASE_URL?.trim(),
   );
-  if (
-    cloudMlRegion &&
-    !hasExplicitMultiBaseUrl &&
-    !looksLikeMultiRegion(cloudMlRegion)
-  ) {
+  if (cloudMlRegion && !hasExplicitMultiBaseUrl && !looksLikeMultiRegion(cloudMlRegion)) {
     return cloudMlRegion;
   }
 
@@ -400,8 +375,7 @@ function resolveMultiRegionProfile(): VertexEndpointProfile | undefined {
     process.env.GOOGLE_CLOUD_LOCATION?.trim();
 
   const locationFromBaseUrl = inferMultiLocationFromBaseUrl(baseUrlFromEnv);
-  const locationFromRegionalFallback =
-    inferMultiLocationFromRegionalLocation(regionalLocation);
+  const locationFromRegionalFallback = inferMultiLocationFromRegionalLocation(regionalLocation);
 
   const location =
     locationFromBaseUrl ||
@@ -428,47 +402,26 @@ function resolveMultiRegionProfile(): VertexEndpointProfile | undefined {
   };
 }
 
-function resolveEndpointProfiles(): Record<
-  EndpointProfileName,
-  VertexEndpointProfile | undefined
-> {
+function resolveEndpointProfiles(): Record<EndpointProfileName, VertexEndpointProfile | undefined> {
   const regionalLocation = resolveRegionalLocation();
   return {
     regional: {
       name: "regional",
-      baseUrl: normalizeBaseUrl(
-        `https://${regionalLocation}-aiplatform.googleapis.com`,
-      ),
+      baseUrl: normalizeBaseUrl(`https://${regionalLocation}-aiplatform.googleapis.com`),
       location: regionalLocation,
     },
     multi: resolveMultiRegionProfile(),
   };
 }
 
-function normalizeEndpointProfileName(
-  value: string,
-): EndpointProfileName | undefined {
+function normalizeEndpointProfileName(value: string): EndpointProfileName | undefined {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return undefined;
 
-  if (
-    ["regional", "region", "default", "europe", "europe-west1"].includes(
-      normalized,
-    )
-  ) {
+  if (["regional", "region", "default", "europe", "europe-west1"].includes(normalized)) {
     return "regional";
   }
-  if (
-    [
-      "multi",
-      "multiregion",
-      "multi-region",
-      "rep",
-      "global",
-      "eu",
-      "us",
-    ].includes(normalized)
-  ) {
+  if (["multi", "multiregion", "multi-region", "rep", "global", "eu", "us"].includes(normalized)) {
     return "multi";
   }
   return undefined;
@@ -568,9 +521,7 @@ function parseModelLimitsOverrides(): Record<string, ModelLimitsOverride> {
     const modelId = modelIdRaw?.trim();
     if (!modelId || !limitsRaw) continue;
 
-    const [contextRaw, maxRaw] = limitsRaw
-      .split(/[:/]/g)
-      .map((value) => value.trim());
+    const [contextRaw, maxRaw] = limitsRaw.split(/[:/]/g).map((value) => value.trim());
     const contextWindow = parsePositiveInt(contextRaw);
     const maxTokens = parsePositiveInt(maxRaw);
     if (contextWindow || maxTokens) {
@@ -611,10 +562,7 @@ function resolveModelLimits(
 
 function resolveEndpointOrderForModel(
   modelId: string,
-  endpointProfiles: Record<
-    EndpointProfileName,
-    VertexEndpointProfile | undefined
-  >,
+  endpointProfiles: Record<EndpointProfileName, VertexEndpointProfile | undefined>,
   endpointOverrides: Record<string, EndpointProfileName[]>,
 ): VertexEndpointProfile[] {
   const overrideOrder = endpointOverrides[modelId];
@@ -653,10 +601,7 @@ function buildVertexStreamUrl(
   return `${endpoint.baseUrl}/projects/${project}/locations/${endpoint.location}/publishers/anthropic/models/${encodedModelId}:streamRawPredict`;
 }
 
-function isModelUnavailableAtEndpoint(
-  status: number,
-  bodyText: string,
-): boolean {
+function isModelUnavailableAtEndpoint(status: number, bodyText: string): boolean {
   if (status === 404) return true;
   if (status !== 400 && status !== 403) return false;
 
@@ -667,9 +612,7 @@ function isModelUnavailableAtEndpoint(
     text.includes("publisher model") ||
     text.includes("invalid publisher") ||
     text.includes("invalid endpoint name") ||
-    (text.includes("model") &&
-      text.includes("location") &&
-      text.includes("supported"))
+    (text.includes("model") && text.includes("location") && text.includes("supported"))
   );
 }
 
@@ -719,8 +662,7 @@ async function postVertexStreamWithFallback(
     attempts.push(`${endpointLabel} -> ${response.status} ${text}`);
 
     const canTryNextEndpoint =
-      i < endpoints.length - 1 &&
-      isModelUnavailableAtEndpoint(response.status, text);
+      i < endpoints.length - 1 && isModelUnavailableAtEndpoint(response.status, text);
     if (canTryNextEndpoint) continue;
     break;
   }
@@ -728,9 +670,7 @@ async function postVertexStreamWithFallback(
   const details = attempts.length
     ? attempts.join("\n---\n")
     : "No endpoint attempts were recorded.";
-  throw new Error(
-    `Agent Platform Anthropic request failed across endpoints:\n${details}`,
-  );
+  throw new Error(`Agent Platform Anthropic request failed across endpoints:\n${details}`);
 }
 
 function streamVertexAnthropic(
@@ -803,9 +743,7 @@ function streamVertexAnthropic(
             `Model requires a multi-region endpoint. Set ANTHROPIC_AGENT_PLATFORM_BASE_URL (for example https://aiplatform.eu.rep.googleapis.com/v1) and AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION (eu, us, or global). Detected env: base URL=${baseUrlHint}, multi location=${multiLocationHint}, regional location=${regionalLocationHint}.`,
           );
         }
-        throw new Error(
-          "No Agent Platform endpoint profiles are configured for this model.",
-        );
+        throw new Error("No Agent Platform endpoint profiles are configured for this model.");
       }
 
       const token = resolveAccessToken();
@@ -818,8 +756,7 @@ function streamVertexAnthropic(
         max_tokens: maxTokens,
         stream: true,
       };
-      if (context.systemPrompt)
-        body.system = sanitizeSurrogates(context.systemPrompt);
+      if (context.systemPrompt) body.system = sanitizeSurrogates(context.systemPrompt);
       if (context.tools?.length) body.tools = convertTools(context.tools);
       addPromptCaching(body);
 
@@ -832,13 +769,10 @@ function streamVertexAnthropic(
           xhigh: 65536,
         };
         const customBudget =
-          options.thinkingBudgets?.[
-            options.reasoning as keyof typeof options.thinkingBudgets
-          ];
+          options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets];
         body.thinking = {
           type: "enabled",
-          budget_tokens:
-            customBudget ?? defaultBudgets[options.reasoning] ?? 10240,
+          budget_tokens: customBudget ?? defaultBudgets[options.reasoning] ?? 10240,
         };
       }
 
@@ -851,18 +785,14 @@ function streamVertexAnthropic(
       });
       const responseBody = response.body;
       if (!responseBody) {
-        throw new Error(
-          "Agent Platform Anthropic response did not include a stream body.",
-        );
+        throw new Error("Agent Platform Anthropic response did not include a stream body.");
       }
 
       stream.push({ type: "start", partial: output });
 
-      type Block = (
-        | ThinkingContent
-        | TextContent
-        | (ToolCall & { partialJson: string })
-      ) & { index: number };
+      type Block = (ThinkingContent | TextContent | (ToolCall & { partialJson: string })) & {
+        index: number;
+      };
       const blocks = output.content as Block[];
 
       const reader = responseBody.getReader();
@@ -875,10 +805,8 @@ function streamVertexAnthropic(
         if (event.type === "message_start") {
           output.usage.input = event.message?.usage?.input_tokens || 0;
           output.usage.output = event.message?.usage?.output_tokens || 0;
-          output.usage.cacheRead =
-            event.message?.usage?.cache_read_input_tokens || 0;
-          output.usage.cacheWrite =
-            event.message?.usage?.cache_creation_input_tokens || 0;
+          output.usage.cacheRead = event.message?.usage?.cache_read_input_tokens || 0;
+          output.usage.cacheWrite = event.message?.usage?.cache_creation_input_tokens || 0;
           output.usage.totalTokens =
             output.usage.input +
             output.usage.output +
@@ -937,10 +865,7 @@ function streamVertexAnthropic(
               delta: event.delta.text,
               partial: output,
             });
-          } else if (
-            event.delta?.type === "thinking_delta" &&
-            block.type === "thinking"
-          ) {
+          } else if (event.delta?.type === "thinking_delta" && block.type === "thinking") {
             block.thinking += event.delta.thinking;
             stream.push({
               type: "thinking_delta",
@@ -948,10 +873,7 @@ function streamVertexAnthropic(
               delta: event.delta.thinking,
               partial: output,
             });
-          } else if (
-            event.delta?.type === "input_json_delta" &&
-            block.type === "toolCall"
-          ) {
+          } else if (event.delta?.type === "input_json_delta" && block.type === "toolCall") {
             (block as any).partialJson += event.delta.partial_json;
             try {
               block.arguments = JSON.parse((block as any).partialJson);
@@ -962,12 +884,8 @@ function streamVertexAnthropic(
               delta: event.delta.partial_json,
               partial: output,
             });
-          } else if (
-            event.delta?.type === "signature_delta" &&
-            block.type === "thinking"
-          ) {
-            block.thinkingSignature =
-              (block.thinkingSignature || "") + event.delta.signature;
+          } else if (event.delta?.type === "signature_delta" && block.type === "thinking") {
+            block.thinkingSignature = (block.thinkingSignature || "") + event.delta.signature;
           }
         } else if (event.type === "content_block_stop") {
           const index = blocks.findIndex((b) => b.index === event.index);
@@ -1002,13 +920,10 @@ function streamVertexAnthropic(
             });
           }
         } else if (event.type === "message_delta") {
-          if (event.delta?.stop_reason)
-            output.stopReason = mapStopReason(event.delta.stop_reason);
+          if (event.delta?.stop_reason) output.stopReason = mapStopReason(event.delta.stop_reason);
           output.usage.input = event.usage?.input_tokens || output.usage.input;
-          output.usage.output =
-            event.usage?.output_tokens || output.usage.output;
-          output.usage.cacheRead =
-            event.usage?.cache_read_input_tokens || output.usage.cacheRead;
+          output.usage.output = event.usage?.output_tokens || output.usage.output;
+          output.usage.cacheRead = event.usage?.cache_read_input_tokens || output.usage.cacheRead;
           output.usage.cacheWrite =
             event.usage?.cache_creation_input_tokens || output.usage.cacheWrite;
           output.usage.totalTokens =
@@ -1059,8 +974,7 @@ function streamVertexAnthropic(
     } catch (error) {
       for (const block of output.content) delete (block as any).index;
       output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-      output.errorMessage =
-        error instanceof Error ? error.message : JSON.stringify(error);
+      output.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
       stream.push({ type: "error", reason: output.stopReason, error: output });
       stream.end();
     }
@@ -1148,5 +1062,4 @@ export default function (pi: ExtensionAPI) {
     models,
     streamSimple,
   });
-
 }
