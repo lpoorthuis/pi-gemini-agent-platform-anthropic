@@ -254,7 +254,40 @@ function convertTools(tools: Tool[]) {
       properties: (tool.parameters as any).properties || {},
       required: (tool.parameters as any).required || [],
     },
+    cache_control: { type: "ephemeral" },
   }));
+}
+
+function applyEphemeralCacheControl(block: any) {
+  return { ...block, cache_control: { type: "ephemeral" } };
+}
+
+function addPromptCaching(body: any) {
+  if (typeof body.system === "string") {
+    body.system = [
+      applyEphemeralCacheControl({ type: "text", text: body.system }),
+    ];
+  } else if (Array.isArray(body.system) && body.system.length > 0) {
+    body.system[body.system.length - 1] = applyEphemeralCacheControl(
+      body.system[body.system.length - 1],
+    );
+  }
+
+  for (let i = body.messages.length - 1; i >= 0; i--) {
+    const message = body.messages[i];
+    if (message.role !== "user") continue;
+
+    if (typeof message.content === "string") {
+      message.content = [
+        applyEphemeralCacheControl({ type: "text", text: message.content }),
+      ];
+    } else if (Array.isArray(message.content) && message.content.length > 0) {
+      message.content[message.content.length - 1] = applyEphemeralCacheControl(
+        message.content[message.content.length - 1],
+      );
+    }
+    break;
+  }
 }
 
 function resolveAccessToken(): string {
@@ -787,6 +820,7 @@ function streamVertexAnthropic(
       if (context.systemPrompt)
         body.system = sanitizeSurrogates(context.systemPrompt);
       if (context.tools?.length) body.tools = convertTools(context.tools);
+      addPromptCaching(body);
 
       if (options?.reasoning && model.reasoning) {
         const defaultBudgets: Record<string, number> = {
