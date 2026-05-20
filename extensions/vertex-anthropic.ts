@@ -1145,6 +1145,7 @@ export default function (pi: ExtensionAPI) {
     streamVertexAnthropic(model, context, options, runtimeConfig);
 
   pi.registerProvider("agent-platform-anthropic", {
+    name: "Agent Platform Anthropic",
     // Dummy apiKey keeps provider selectable; actual auth comes from ADC via gcloud token retrieval.
     apiKey: "agent-platform-adc",
     api: "agent-platform-anthropic-api",
@@ -1155,6 +1156,7 @@ export default function (pi: ExtensionAPI) {
 
   // Backward-compatible provider alias for existing pi configs/scripts.
   pi.registerProvider("vertex-anthropic", {
+    name: "Vertex Anthropic",
     apiKey: "vertex-adc",
     api: "vertex-anthropic-api",
     baseUrl: "https://aiplatform.googleapis.com/v1",
