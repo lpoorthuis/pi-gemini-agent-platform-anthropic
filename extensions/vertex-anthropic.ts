@@ -25,6 +25,7 @@ const DEFAULT_CONTEXT_WINDOW = 500000;
 const ONE_MILLION_CONTEXT_WINDOW = 1000000;
 const DEFAULT_MAX_TOKENS = 64000;
 const OPUS_47_MAX_TOKENS = 128000;
+const VERTEX_OVERFLOW_PATTERN = /token limit|context.*exceed|too many tokens/i;
 
 const DEFAULT_MODELS = [
   "claude-opus-4-7",
@@ -1096,6 +1097,29 @@ function parseModelListFromEnv(): string[] {
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("message_end", (event: any) => {
+    const message = event.message;
+    if (message?.role !== "assistant") return;
+    if (message.stopReason !== "error") return;
+    if (
+      message.provider !== "agent-platform-anthropic" &&
+      message.provider !== "vertex-anthropic"
+    ) {
+      return;
+    }
+
+    const errorMessage = message.errorMessage ?? "";
+    if (errorMessage.includes("context_length_exceeded")) return;
+    if (!VERTEX_OVERFLOW_PATTERN.test(errorMessage)) return;
+
+    return {
+      message: {
+        ...message,
+        errorMessage: `context_length_exceeded: ${errorMessage}`,
+      },
+    };
+  });
+
   const modelIds = parseModelListFromEnv();
   const modelLimitsOverrides = parseModelLimitsOverrides();
 
