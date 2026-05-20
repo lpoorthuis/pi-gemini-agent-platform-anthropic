@@ -28,6 +28,7 @@ const OPUS_47_MAX_TOKENS = 128000;
 
 const DEFAULT_MODELS = [
   "claude-opus-4-7",
+  "claude-opus-4-7[1m]",
   "claude-opus-4-6",
   "claude-sonnet-4-6",
   "claude-haiku-4-5@20251001",
@@ -58,6 +59,10 @@ interface RuntimeConfig {
 
 const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
   "claude-opus-4-7": {
+    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
+    maxTokens: OPUS_47_MAX_TOKENS,
+  },
+  "claude-opus-4-7[1m]": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: OPUS_47_MAX_TOKENS,
   },
@@ -246,7 +251,9 @@ function convertTools(tools: Tool[]) {
 
 function resolveAccessToken(): string {
   const envToken =
-    process.env.GOOGLE_OAUTH_ACCESS_TOKEN || process.env.VERTEX_ACCESS_TOKEN;
+    process.env.GOOGLE_OAUTH_ACCESS_TOKEN ||
+    process.env.AGENT_PLATFORM_ACCESS_TOKEN ||
+    process.env.VERTEX_ACCESS_TOKEN;
   if (envToken?.trim()) return envToken.trim();
 
   const token = execFileSync(
@@ -264,7 +271,7 @@ function resolveAccessToken(): string {
 function normalizeBaseUrl(baseUrl: string): string {
   let normalized = baseUrl.trim().replace(/\/+$/, "");
   if (!normalized)
-    throw new Error("ANTHROPIC_VERTEX_BASE_URL resolved to an empty string.");
+    throw new Error("Anthropic Agent Platform base URL resolved to an empty string.");
   if (!/\/v\d+(?:beta\d+)?$/i.test(normalized)) {
     normalized = `${normalized}/v1`;
   }
@@ -308,12 +315,16 @@ function inferMultiLocationFromRegionalLocation(
 
 function resolveRegionalLocation(): string {
   const explicitRegionalLocation =
+    process.env.AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
     process.env.VERTEX_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
+    process.env.GOOGLE_AGENT_PLATFORM_LOCATION?.trim() ||
     process.env.GOOGLE_CLOUD_LOCATION?.trim();
   if (explicitRegionalLocation) return explicitRegionalLocation;
 
   const cloudMlRegion = process.env.CLOUD_ML_REGION?.trim();
   const hasExplicitMultiBaseUrl = Boolean(
+    process.env.ANTHROPIC_AGENT_PLATFORM_BASE_URL?.trim() ||
+    process.env.AGENT_PLATFORM_ANTHROPIC_BASE_URL?.trim() ||
     process.env.ANTHROPIC_VERTEX_BASE_URL?.trim() ||
     process.env.VERTEX_ANTHROPIC_BASE_URL?.trim(),
   );
@@ -330,14 +341,20 @@ function resolveRegionalLocation(): string {
 
 function resolveMultiRegionProfile(): VertexEndpointProfile | undefined {
   const baseUrlFromEnv =
+    process.env.ANTHROPIC_AGENT_PLATFORM_BASE_URL?.trim() ||
+    process.env.AGENT_PLATFORM_ANTHROPIC_BASE_URL?.trim() ||
     process.env.ANTHROPIC_VERTEX_BASE_URL?.trim() ||
     process.env.VERTEX_ANTHROPIC_BASE_URL?.trim();
   const locationFromEnv =
+    process.env.AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION?.trim() ||
+    process.env.ANTHROPIC_AGENT_PLATFORM_LOCATION?.trim() ||
     process.env.CLOUD_ML_REGION?.trim() ||
     process.env.VERTEX_ANTHROPIC_MULTI_LOCATION?.trim() ||
     process.env.ANTHROPIC_VERTEX_LOCATION?.trim();
   const regionalLocation =
+    process.env.AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
     process.env.VERTEX_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
+    process.env.GOOGLE_AGENT_PLATFORM_LOCATION?.trim() ||
     process.env.GOOGLE_CLOUD_LOCATION?.trim();
 
   const locationFromBaseUrl = inferMultiLocationFromBaseUrl(baseUrlFromEnv);
@@ -345,7 +362,10 @@ function resolveMultiRegionProfile(): VertexEndpointProfile | undefined {
     inferMultiLocationFromRegionalLocation(regionalLocation);
 
   const location =
-    locationFromBaseUrl || locationFromEnv || locationFromRegionalFallback;
+    locationFromBaseUrl ||
+    locationFromEnv ||
+    locationFromRegionalFallback ||
+    DEFAULT_MULTI_LOCATION;
   if (!location) {
     return undefined;
   }
@@ -420,7 +440,9 @@ function parseDelimitedEntries(raw: string): string[] {
 }
 
 function parseModelEndpointOverrides(): Record<string, EndpointProfileName[]> {
-  const raw = process.env.VERTEX_ANTHROPIC_MODEL_ENDPOINTS?.trim();
+  const raw =
+    process.env.AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS?.trim() ||
+    process.env.VERTEX_ANTHROPIC_MODEL_ENDPOINTS?.trim();
   if (!raw) return {};
 
   const overrides: Record<string, EndpointProfileName[]> = {};
@@ -467,7 +489,9 @@ function parseModelEndpointOverrides(): Record<string, EndpointProfileName[]> {
 }
 
 function parseModelLimitsOverrides(): Record<string, ModelLimitsOverride> {
-  const raw = process.env.VERTEX_ANTHROPIC_MODEL_LIMITS?.trim();
+  const raw =
+    process.env.AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS?.trim() ||
+    process.env.VERTEX_ANTHROPIC_MODEL_LIMITS?.trim();
   if (!raw) return {};
 
   const overrides: Record<string, ModelLimitsOverride> = {};
@@ -663,7 +687,7 @@ async function postVertexStreamWithFallback(
     ? attempts.join("\n---\n")
     : "No endpoint attempts were recorded.";
   throw new Error(
-    `Vertex Anthropic request failed across endpoints:\n${details}`,
+    `Agent Platform Anthropic request failed across endpoints:\n${details}`,
   );
 }
 
@@ -697,10 +721,13 @@ function streamVertexAnthropic(
     try {
       const project =
         process.env.GOOGLE_CLOUD_PROJECT ||
+        process.env.GOOGLE_AGENT_PLATFORM_PROJECT ||
+        process.env.AGENT_PLATFORM_PROJECT_ID ||
+        process.env.ANTHROPIC_AGENT_PLATFORM_PROJECT_ID ||
         process.env.ANTHROPIC_VERTEX_PROJECT_ID;
       if (!project) {
         throw new Error(
-          "Set GOOGLE_CLOUD_PROJECT (or ANTHROPIC_VERTEX_PROJECT_ID) for Vertex Anthropic.",
+          "Set GOOGLE_CLOUD_PROJECT (or AGENT_PLATFORM_PROJECT_ID / ANTHROPIC_AGENT_PLATFORM_PROJECT_ID) for Agent Platform Anthropic.",
         );
       }
 
@@ -712,24 +739,30 @@ function streamVertexAnthropic(
       if (endpoints.length === 0) {
         if (isOneMillionModelAlias(model.id)) {
           const baseUrlHint =
+            process.env.ANTHROPIC_AGENT_PLATFORM_BASE_URL?.trim() ||
+            process.env.AGENT_PLATFORM_ANTHROPIC_BASE_URL?.trim() ||
             process.env.ANTHROPIC_VERTEX_BASE_URL?.trim() ||
             process.env.VERTEX_ANTHROPIC_BASE_URL?.trim() ||
             "(unset)";
           const multiLocationHint =
+            process.env.AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION?.trim() ||
+            process.env.ANTHROPIC_AGENT_PLATFORM_LOCATION?.trim() ||
             process.env.CLOUD_ML_REGION?.trim() ||
             process.env.VERTEX_ANTHROPIC_MULTI_LOCATION?.trim() ||
             process.env.ANTHROPIC_VERTEX_LOCATION?.trim() ||
             "(unset)";
           const regionalLocationHint =
+            process.env.GOOGLE_AGENT_PLATFORM_LOCATION?.trim() ||
             process.env.GOOGLE_CLOUD_LOCATION?.trim() ||
+            process.env.AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
             process.env.VERTEX_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
             "(unset)";
           throw new Error(
-            `Model requires a multi-region endpoint. Set ANTHROPIC_VERTEX_BASE_URL (for example https://aiplatform.eu.rep.googleapis.com/v1) and CLOUD_ML_REGION (eu or us). Detected env: ANTHROPIC_VERTEX_BASE_URL=${baseUrlHint}, CLOUD_ML_REGION=${multiLocationHint}, GOOGLE_CLOUD_LOCATION=${regionalLocationHint}.`,
+            `Model requires a multi-region endpoint. Set ANTHROPIC_AGENT_PLATFORM_BASE_URL (for example https://aiplatform.eu.rep.googleapis.com/v1) and AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION (eu, us, or global). Detected env: base URL=${baseUrlHint}, multi location=${multiLocationHint}, regional location=${regionalLocationHint}.`,
           );
         }
         throw new Error(
-          "No Vertex endpoint profiles are configured for this model.",
+          "No Agent Platform endpoint profiles are configured for this model.",
         );
       }
 
@@ -748,17 +781,21 @@ function streamVertexAnthropic(
       if (context.tools?.length) body.tools = convertTools(context.tools);
 
       if (options?.reasoning && model.reasoning) {
-        const effortByReasoning: Record<string, "low" | "medium" | "high"> = {
-          minimal: "low",
-          low: "low",
-          medium: "medium",
-          high: "high",
-          xhigh: "high",
+        const defaultBudgets: Record<string, number> = {
+          minimal: 1024,
+          low: 4096,
+          medium: 10240,
+          high: 20480,
+          xhigh: 32768,
         };
-        body.thinking = { type: "adaptive" };
-        body.output_config = {
-          ...(body.output_config || {}),
-          effort: effortByReasoning[options.reasoning] ?? "medium",
+        const customBudget =
+          options.thinkingBudgets?.[
+            options.reasoning as keyof typeof options.thinkingBudgets
+          ];
+        body.thinking = {
+          type: "enabled",
+          budget_tokens:
+            customBudget ?? defaultBudgets[options.reasoning] ?? 10240,
         };
       }
 
@@ -772,7 +809,7 @@ function streamVertexAnthropic(
       const responseBody = response.body;
       if (!responseBody) {
         throw new Error(
-          "Vertex Anthropic response did not include a stream body.",
+          "Agent Platform Anthropic response did not include a stream body.",
         );
       }
 
@@ -990,7 +1027,9 @@ function streamVertexAnthropic(
 }
 
 function parseModelListFromEnv(): string[] {
-  const explicitList = process.env.VERTEX_ANTHROPIC_MODELS?.trim();
+  const explicitList =
+    process.env.AGENT_PLATFORM_ANTHROPIC_MODELS?.trim() ||
+    process.env.VERTEX_ANTHROPIC_MODELS?.trim();
   if (explicitList) {
     return dedupe(
       explicitList
@@ -1023,24 +1062,40 @@ export default function (pi: ExtensionAPI) {
     endpointOverrides: parseModelEndpointOverrides(),
   };
 
-  pi.registerProvider("vertex-anthropic", {
+  const models = modelIds.map((id) => {
+    const limits = resolveModelLimits(id, modelLimitsOverrides);
+    return {
+      id,
+      name: `Agent Platform Anthropic: ${id}`,
+      reasoning: true,
+      input: ["text", "image"],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: limits.contextWindow,
+      maxTokens: limits.maxTokens,
+    };
+  });
+
+  const streamSimple = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) =>
+    streamVertexAnthropic(model, context, options, runtimeConfig);
+
+  pi.registerProvider("agent-platform-anthropic", {
     // Dummy apiKey keeps provider selectable; actual auth comes from ADC via gcloud token retrieval.
+    apiKey: "agent-platform-adc",
+    api: "agent-platform-anthropic-api",
+    baseUrl: "https://aiplatform.googleapis.com/v1",
+    models,
+    streamSimple,
+  });
+
+  // Backward-compatible provider alias for existing pi configs/scripts.
+  pi.registerProvider("vertex-anthropic", {
     apiKey: "vertex-adc",
     api: "vertex-anthropic-api",
     baseUrl: "https://aiplatform.googleapis.com/v1",
-    models: modelIds.map((id) => {
-      const limits = resolveModelLimits(id, modelLimitsOverrides);
-      return {
-        id,
-        name: `Vertex Anthropic: ${id}`,
-        reasoning: true,
-        input: ["text", "image"],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: limits.contextWindow,
-        maxTokens: limits.maxTokens,
-      };
-    }),
-    streamSimple: (model, context, options) =>
-      streamVertexAnthropic(model, context, options, runtimeConfig),
+    models: models.map((model) => ({
+      ...model,
+      name: model.name.replace("Agent Platform Anthropic", "Vertex Anthropic"),
+    })),
+    streamSimple,
   });
 }
