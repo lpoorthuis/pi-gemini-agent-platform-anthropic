@@ -249,7 +249,6 @@ function convertTools(tools: Tool[]) {
       properties: (tool.parameters as any).properties || {},
       required: (tool.parameters as any).required || [],
     },
-    cache_control: { type: "ephemeral" },
   }));
 }
 
@@ -258,26 +257,47 @@ function applyEphemeralCacheControl(block: any) {
 }
 
 function addPromptCaching(body: any) {
-  if (typeof body.system === "string") {
+  // Anthropic accepts at most 4 cache_control markers per request.
+  // Prefer stable/high-value prefixes first: system prompt, last user turn,
+  // then as many tool definitions as fit within the limit.
+  let remainingMarkers = 4;
+
+  if (typeof body.system === "string" && remainingMarkers > 0) {
     body.system = [applyEphemeralCacheControl({ type: "text", text: body.system })];
-  } else if (Array.isArray(body.system) && body.system.length > 0) {
+    remainingMarkers--;
+  } else if (Array.isArray(body.system) && body.system.length > 0 && remainingMarkers > 0) {
     body.system[body.system.length - 1] = applyEphemeralCacheControl(
       body.system[body.system.length - 1],
     );
+    remainingMarkers--;
   }
 
   for (let i = body.messages.length - 1; i >= 0; i--) {
     const message = body.messages[i];
     if (message.role !== "user") continue;
 
-    if (typeof message.content === "string") {
+    if (typeof message.content === "string" && remainingMarkers > 0) {
       message.content = [applyEphemeralCacheControl({ type: "text", text: message.content })];
-    } else if (Array.isArray(message.content) && message.content.length > 0) {
+      remainingMarkers--;
+    } else if (
+      Array.isArray(message.content) &&
+      message.content.length > 0 &&
+      remainingMarkers > 0
+    ) {
       message.content[message.content.length - 1] = applyEphemeralCacheControl(
         message.content[message.content.length - 1],
       );
+      remainingMarkers--;
     }
     break;
+  }
+
+  if (Array.isArray(body.tools)) {
+    for (const tool of body.tools) {
+      if (remainingMarkers <= 0) break;
+      tool.cache_control = { type: "ephemeral" };
+      remainingMarkers--;
+    }
   }
 }
 
