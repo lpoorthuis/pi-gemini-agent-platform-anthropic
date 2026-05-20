@@ -1,6 +1,6 @@
 {
   "name": "vertex-anthropic-pi",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Pi extension package to use Anthropic partner models on Google Gemini Enterprise Agent Platform",
   "keywords": ["pi-package", "agent-platform", "vertex", "anthropic", "claude"],
