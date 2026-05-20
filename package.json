@@ -13,6 +13,8 @@
   "scripts": {
     "format": "npx oxfmt --write package.json extensions/**/*.ts",
     "format:check": "npx oxfmt --check package.json extensions/**/*.ts",
+    "prettier:apply": "npm run format",
+    "prettier:check": "npm run format:check",
     "lint": "npx oxlint extensions",
     "lint:fix": "npx oxlint --fix extensions",
     "test": "node -e \"console.log('No tests configured')\""
