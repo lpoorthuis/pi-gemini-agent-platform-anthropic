@@ -111,7 +111,9 @@ const DISPLAY_NAMES: Record<string, string> = {
   "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
 };
 
-const ADAPTIVE_THINKING_LEVEL_MAP = {
+type AdaptiveThinkingEffort = "low" | "medium" | "high" | "max";
+
+const ADAPTIVE_THINKING_LEVEL_MAP: Record<string, AdaptiveThinkingEffort> = {
   minimal: "low",
   low: "low",
   medium: "medium",
@@ -732,19 +734,8 @@ function usesAdaptiveThinking(modelId: string): boolean {
   return ADAPTIVE_THINKING_MODEL_IDS.has(resolveAgentPlatformRequestModelId(modelId));
 }
 
-function mapReasoningEffort(reasoning: string): "low" | "medium" | "high" | "max" {
-  switch (reasoning) {
-    case "minimal":
-    case "low":
-      return "low";
-    case "high":
-      return "high";
-    case "max":
-    case "xhigh":
-      return "max";
-    default:
-      return "medium";
-  }
+function mapReasoningEffort(reasoning: string): AdaptiveThinkingEffort {
+  return ADAPTIVE_THINKING_LEVEL_MAP[reasoning] ?? "medium";
 }
 
 function resolveProjectId(): string {
