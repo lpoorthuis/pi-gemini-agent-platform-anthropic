@@ -123,6 +123,14 @@ const ADAPTIVE_THINKING_LEVEL_MAP: Record<string, AdaptiveThinkingEffort> = {
 
 let cachedAccessToken: { value: string; expiresAt: number } | undefined;
 
+function envFirst(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 function dedupe<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
@@ -190,7 +198,7 @@ function mapStopReason(reason: string): StopReason {
 }
 
 function debugWarningsEnabled(): boolean {
-  return /^(1|true|yes)$/i.test(process.env.AGENT_PLATFORM_ANTHROPIC_DEBUG?.trim() ?? "");
+  return /^(1|true|yes)$/i.test(envFirst("AGENT_PLATFORM_ANTHROPIC_DEBUG") ?? "");
 }
 
 function parseStreamJson(raw: string): unknown | undefined {
@@ -382,8 +390,8 @@ function addPromptCaching(body: any) {
 }
 
 function resolveAccessToken(): string {
-  const envToken = process.env.GOOGLE_OAUTH_ACCESS_TOKEN || process.env.AGENT_PLATFORM_ACCESS_TOKEN;
-  if (envToken?.trim()) return envToken.trim();
+  const envToken = envFirst("GOOGLE_OAUTH_ACCESS_TOKEN");
+  if (envToken) return envToken;
 
   if (cachedAccessToken && cachedAccessToken.expiresAt > Date.now()) {
     return cachedAccessToken.value;
@@ -454,26 +462,13 @@ function inferMultiLocationFromRegionalLocation(
 }
 
 function resolveRegionalLocation(): string {
-  const explicitRegionalLocation =
-    process.env.AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
-    process.env.GOOGLE_AGENT_PLATFORM_LOCATION?.trim() ||
-    process.env.GOOGLE_CLOUD_LOCATION?.trim();
-  if (explicitRegionalLocation) return explicitRegionalLocation;
-
-  return DEFAULT_LOCATION;
+  return envFirst("GOOGLE_CLOUD_LOCATION") ?? DEFAULT_LOCATION;
 }
 
 function resolveMultiRegionProfile(): AgentPlatformEndpointProfile | undefined {
-  const baseUrlFromEnv =
-    process.env.ANTHROPIC_AGENT_PLATFORM_BASE_URL?.trim() ||
-    process.env.AGENT_PLATFORM_ANTHROPIC_BASE_URL?.trim();
-  const locationFromEnv =
-    process.env.AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION?.trim() ||
-    process.env.ANTHROPIC_AGENT_PLATFORM_LOCATION?.trim();
-  const regionalLocation =
-    process.env.AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
-    process.env.GOOGLE_AGENT_PLATFORM_LOCATION?.trim() ||
-    process.env.GOOGLE_CLOUD_LOCATION?.trim();
+  const baseUrlFromEnv = envFirst("AGENT_PLATFORM_ANTHROPIC_BASE_URL");
+  const locationFromEnv = envFirst("AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION");
+  const regionalLocation = envFirst("GOOGLE_CLOUD_LOCATION");
 
   const locationFromBaseUrl = inferMultiLocationFromBaseUrl(baseUrlFromEnv);
   const locationFromRegionalFallback = inferMultiLocationFromRegionalLocation(regionalLocation);
@@ -539,7 +534,7 @@ function parseDelimitedEntries(raw: string): string[] {
 }
 
 function parseModelEndpointOverrides(): Record<string, EndpointProfileName[]> {
-  const raw = process.env.AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS?.trim();
+  const raw = envFirst("AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS");
   if (!raw) return {};
 
   const overrides: Record<string, EndpointProfileName[]> = {};
@@ -586,7 +581,7 @@ function parseModelEndpointOverrides(): Record<string, EndpointProfileName[]> {
 }
 
 function parseModelLimitsOverrides(): Record<string, ModelLimitsOverride> {
-  const raw = process.env.AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS?.trim();
+  const raw = envFirst("AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS");
   if (!raw) return {};
 
   const overrides: Record<string, ModelLimitsOverride> = {};
@@ -717,7 +712,7 @@ function isRetryableAtNextEndpoint(status: number, bodyText: string): boolean {
 }
 
 function parseAdaptiveThinkingModelIds(): Set<string> {
-  const raw = process.env.AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS?.trim();
+  const raw = envFirst("AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS");
   const modelIds = raw
     ? raw
         .split(",")
@@ -739,24 +734,14 @@ function mapReasoningEffort(reasoning: string): AdaptiveThinkingEffort {
 }
 
 function resolveProjectId(): string {
-  const project =
-    process.env.GOOGLE_CLOUD_PROJECT?.trim() ||
-    process.env.GOOGLE_AGENT_PLATFORM_PROJECT?.trim() ||
-    process.env.AGENT_PLATFORM_PROJECT_ID?.trim() ||
-    process.env.ANTHROPIC_AGENT_PLATFORM_PROJECT_ID?.trim();
-
+  const project = envFirst("GOOGLE_CLOUD_PROJECT");
   if (project) return project;
 
   throw new Error(`Missing Google Cloud project for Gemini Enterprise Agent Platform.
 
 Run:
   export GOOGLE_CLOUD_PROJECT="your-project-id"
-  gcloud auth application-default login
-
-Advanced aliases also supported:
-  GOOGLE_AGENT_PLATFORM_PROJECT
-  AGENT_PLATFORM_PROJECT_ID
-  ANTHROPIC_AGENT_PLATFORM_PROJECT_ID`);
+  gcloud auth application-default login`);
 }
 
 async function postAgentPlatformStreamWithFallback(
@@ -855,21 +840,12 @@ function streamAgentPlatformAnthropic(
       );
       if (endpoints.length === 0) {
         if (isOneMillionModelAlias(model.id)) {
-          const baseUrlHint =
-            process.env.ANTHROPIC_AGENT_PLATFORM_BASE_URL?.trim() ||
-            process.env.AGENT_PLATFORM_ANTHROPIC_BASE_URL?.trim() ||
-            "(unset)";
+          const baseUrlHint = envFirst("AGENT_PLATFORM_ANTHROPIC_BASE_URL") ?? "(unset)";
           const multiLocationHint =
-            process.env.AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION?.trim() ||
-            process.env.ANTHROPIC_AGENT_PLATFORM_LOCATION?.trim() ||
-            "(unset)";
-          const regionalLocationHint =
-            process.env.GOOGLE_AGENT_PLATFORM_LOCATION?.trim() ||
-            process.env.GOOGLE_CLOUD_LOCATION?.trim() ||
-            process.env.AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION?.trim() ||
-            "(unset)";
+            envFirst("AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION") ?? "(unset)";
+          const regionalLocationHint = envFirst("GOOGLE_CLOUD_LOCATION") ?? "(unset)";
           throw new Error(
-            `Model requires a multi-region endpoint. Set ANTHROPIC_AGENT_PLATFORM_BASE_URL (for example https://aiplatform.eu.rep.googleapis.com/v1) and AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION (eu, us, or global). Detected env: base URL=${baseUrlHint}, multi location=${multiLocationHint}, regional location=${regionalLocationHint}.`,
+            `Model requires a multi-region endpoint. Set AGENT_PLATFORM_ANTHROPIC_BASE_URL (for example https://aiplatform.eu.rep.googleapis.com/v1) and AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION (eu, us, or global). Detected env: base URL=${baseUrlHint}, multi location=${multiLocationHint}, regional location=${regionalLocationHint}.`,
           );
         }
         throw new Error(
@@ -1121,7 +1097,7 @@ function streamAgentPlatformAnthropic(
 }
 
 function parseModelListFromEnv(): string[] {
-  const explicitList = process.env.AGENT_PLATFORM_ANTHROPIC_MODELS?.trim();
+  const explicitList = envFirst("AGENT_PLATFORM_ANTHROPIC_MODELS");
   if (explicitList) {
     return dedupe(
       explicitList

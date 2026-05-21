@@ -4,6 +4,17 @@
 
 - No unreleased changes.
 
+## 0.6.0
+
+- **Breaking:** Removed environment-variable aliases. Each configuration knob is now read from exactly one name. Migration:
+  - Project: use `GOOGLE_CLOUD_PROJECT` (removed `GOOGLE_AGENT_PLATFORM_PROJECT`, `AGENT_PLATFORM_PROJECT_ID`, `ANTHROPIC_AGENT_PLATFORM_PROJECT_ID`).
+  - Regional location: use `GOOGLE_CLOUD_LOCATION` (removed `GOOGLE_AGENT_PLATFORM_LOCATION`, `AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION`).
+  - Multi-region location: use `AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION` (removed `ANTHROPIC_AGENT_PLATFORM_LOCATION`).
+  - Multi-region base URL: use `AGENT_PLATFORM_ANTHROPIC_BASE_URL` (removed `ANTHROPIC_AGENT_PLATFORM_BASE_URL`).
+  - Access token override: use `GOOGLE_OAUTH_ACCESS_TOKEN` (removed `AGENT_PLATFORM_ACCESS_TOKEN`).
+- Added `envFirst()` helper to centralize environment-variable lookup.
+- Fixed a latent inconsistency where `resolveRegionalLocation` and `resolveMultiRegionProfile` read the same regional aliases in different priority orders.
+
 ## 0.5.0
 
 - Renamed package metadata and documentation to `agent-platform-anthropic-pi`.
