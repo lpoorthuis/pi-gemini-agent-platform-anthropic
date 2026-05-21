@@ -18,6 +18,7 @@
 - Added `AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS` for future adaptive-thinking model snapshots.
 - Added debug-gated stream parse warnings via `AGENT_PLATFORM_ANTHROPIC_DEBUG=1`.
 - Tightened context-overflow normalization scoping to the active Gemini Enterprise Agent Platform Anthropic provider.
+- Updated `claude-sonnet-4-6` max output tokens to `128,000`.
 
 ## 0.4.0
 

@@ -25,7 +25,7 @@ const DEFAULT_CONTEXT_WINDOW = 200000;
 const HAIKU_CONTEXT_WINDOW = 200000;
 const ONE_MILLION_CONTEXT_WINDOW = 1000000;
 const DEFAULT_MAX_TOKENS = 64000;
-const OPUS_MAX_TOKENS = 128000;
+const MAX_TOKENS_128K = 128000;
 const ANTHROPIC_VERSION = "vertex-2023-10-16";
 const ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000;
 const AGENT_PLATFORM_OVERFLOW_PATTERN = /token limit|context.*exceed|too many tokens/i;
@@ -67,15 +67,15 @@ interface RuntimeConfig {
 const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
   "claude-opus-4-7": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: OPUS_MAX_TOKENS,
+    maxTokens: MAX_TOKENS_128K,
   },
   "claude-opus-4-6": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: OPUS_MAX_TOKENS,
+    maxTokens: MAX_TOKENS_128K,
   },
   "claude-sonnet-4-6": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: DEFAULT_MAX_TOKENS,
+    maxTokens: MAX_TOKENS_128K,
   },
   "claude-haiku-4-5@20251001": {
     contextWindow: HAIKU_CONTEXT_WINDOW,

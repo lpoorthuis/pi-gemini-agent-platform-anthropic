@@ -154,7 +154,7 @@ export AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS='{"claude-opus-4-7":["multi"],"c
 
 ```bash
 # Format: model=contextWindow:maxTokens
-export AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS="claude-opus-4-7=1000000:128000;claude-sonnet-4-6=1000000:64000"
+export AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS="claude-opus-4-7=1000000:128000;claude-sonnet-4-6=1000000:128000"
 ```
 
 JSON format is also supported:
@@ -197,7 +197,7 @@ The extension prefers the configured multi-region endpoint first, then falls bac
 | --- | --- | ---: | ---: | --- |
 | `claude-opus-4-7` | multi → regional | 1,000,000 | 128,000 | input 5, output 25, cache read 0.5, cache write 6.25 |
 | `claude-opus-4-6` | multi → regional | 1,000,000 | 128,000 | input 5, output 25, cache read 0.5, cache write 6.25 |
-| `claude-sonnet-4-6` | multi → regional | 1,000,000 | 64,000 | input 3, output 15, cache read 0.3, cache write 3.75 |
+| `claude-sonnet-4-6` | multi → regional | 1,000,000 | 128,000 | input 3, output 15, cache read 0.3, cache write 3.75 |
 | `claude-haiku-4-5@20251001` | multi → regional | 200,000 | 64,000 | input 1, output 5, cache read 0.1, cache write 1.25 |
 
 Unknown custom models default to a conservative 200,000-token context window and 64,000 max output tokens unless overridden with `AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS`.
