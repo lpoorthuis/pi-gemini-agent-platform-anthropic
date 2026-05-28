@@ -31,10 +31,11 @@ const ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000;
 const AGENT_PLATFORM_OVERFLOW_PATTERN = /token limit|context.*exceed|too many tokens/i;
 
 const DEFAULT_MODELS = [
-  "claude-opus-4-7",
-  "claude-opus-4-6",
-  "claude-sonnet-4-6",
-  "claude-haiku-4-5@20251001",
+  "claude-opus-4.8",
+  "claude-opus-4.7",
+  "claude-opus-4.6",
+  "claude-sonnet-4.6",
+  "claude-haiku-4.5@20251001",
 ];
 
 type EndpointProfileName = "regional" | "multi";
@@ -65,50 +66,57 @@ interface RuntimeConfig {
 }
 
 const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
-  "claude-opus-4-7": {
+  "claude-opus-4.8": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: MAX_TOKENS_128K,
   },
-  "claude-opus-4-6": {
+  "claude-opus-4.7": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: MAX_TOKENS_128K,
   },
-  "claude-sonnet-4-6": {
+  "claude-opus-4.6": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: MAX_TOKENS_128K,
   },
-  "claude-haiku-4-5@20251001": {
+  "claude-sonnet-4.6": {
+    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
+    maxTokens: MAX_TOKENS_128K,
+  },
+  "claude-haiku-4.5@20251001": {
     contextWindow: HAIKU_CONTEXT_WINDOW,
     maxTokens: DEFAULT_MAX_TOKENS,
   },
 };
 
 const DEFAULT_MODEL_ENDPOINT_ORDER: Record<string, EndpointProfileName[]> = {
-  "claude-opus-4-7": ["multi", "regional"],
-  "claude-opus-4-6": ["multi", "regional"],
-  "claude-sonnet-4-6": ["multi", "regional"],
-  "claude-haiku-4-5@20251001": ["multi", "regional"],
+  "claude-opus-4.8": ["multi", "regional"],
+  "claude-opus-4.7": ["multi", "regional"],
+  "claude-opus-4.6": ["multi", "regional"],
+  "claude-sonnet-4.6": ["multi", "regional"],
+  "claude-haiku-4.5@20251001": ["multi", "regional"],
 };
 
-const OPUS_COST: ModelCost = { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 };
-const SONNET_COST: ModelCost = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
-const HAIKU_COST: ModelCost = { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 };
+const OPUS_COST: ModelCost = { input: 5.5, output: 27.5, cacheRead: 0.55, cacheWrite: 6.875 };
+const SONNET_COST: ModelCost = { input: 3.3, output: 16.5, cacheRead: 0.33, cacheWrite: 4.13 };
+const HAIKU_COST: ModelCost = { input: 1.1, output: 5.5, cacheRead: 0.11, cacheWrite: 1.375 };
 const DEFAULT_MODEL_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
 const MODEL_COSTS: Record<string, ModelCost> = {
-  "claude-opus-4-7": OPUS_COST,
-  "claude-opus-4-6": OPUS_COST,
-  "claude-sonnet-4-6": SONNET_COST,
-  "claude-haiku-4-5@20251001": HAIKU_COST,
-  "claude-haiku-4-5-20251001": HAIKU_COST,
+  "claude-opus-4.8": OPUS_COST,
+  "claude-opus-4.7": OPUS_COST,
+  "claude-opus-4.6": OPUS_COST,
+  "claude-sonnet-4.6": SONNET_COST,
+  "claude-haiku-4.5@20251001": HAIKU_COST,
+  "claude-haiku-4.5-20251001": HAIKU_COST,
 };
 
 const DISPLAY_NAMES: Record<string, string> = {
-  "claude-opus-4-7": "Claude Opus 4.7",
-  "claude-opus-4-6": "Claude Opus 4.6",
-  "claude-sonnet-4-6": "Claude Sonnet 4.6",
-  "claude-haiku-4-5@20251001": "Claude Haiku 4.5",
-  "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+  "claude-opus-4.8": "Claude Opus 4.8",
+  "claude-opus-4.7": "Claude Opus 4.7",
+  "claude-opus-4.6": "Claude Opus 4.6",
+  "claude-sonnet-4.6": "Claude Sonnet 4.6",
+  "claude-haiku-4.5@20251001": "Claude Haiku 4.5",
+  "claude-haiku-4.5-20251001": "Claude Haiku 4.5",
 };
 
 type AdaptiveThinkingEffort = "low" | "medium" | "high" | "max";
@@ -154,8 +162,16 @@ function stripOneMillionModelAlias(modelId: string): string {
   return isOneMillionModelAlias(modelId) ? modelId.replace(/\[1m\]/gi, "").trim() : modelId;
 }
 
+function normalizePiModelId(modelId: string): string {
+  return modelId.replace(/^(claude-(?:opus|sonnet|haiku)-4)-(\d)/i, "$1.$2");
+}
+
 function normalizeAnthropicPublisherModelId(modelId: string): string {
-  return modelId.replace(/^(claude-haiku-4-5)-(\d{8})$/i, "$1@$2");
+  const requestModelId = normalizePiModelId(modelId).replace(
+    /^(claude-(?:opus|sonnet|haiku)-4)\.(\d)/i,
+    "$1-$2",
+  );
+  return requestModelId.replace(/^(claude-haiku-4)-(5)-(\d{8})$/i, "$1-$2@$3");
 }
 
 function resolveAgentPlatformRequestModelId(modelId: string): string {
@@ -163,8 +179,10 @@ function resolveAgentPlatformRequestModelId(modelId: string): string {
 }
 
 function resolveModelCost(modelId: string): ModelCost {
+  const piModelId = normalizePiModelId(modelId);
   const requestModelId = resolveAgentPlatformRequestModelId(modelId);
-  const configuredCost = MODEL_COSTS[modelId] || MODEL_COSTS[requestModelId];
+  const configuredCost =
+    MODEL_COSTS[modelId] || MODEL_COSTS[piModelId] || MODEL_COSTS[requestModelId];
   if (configuredCost) return configuredCost;
 
   if (/claude-opus/i.test(requestModelId)) return OPUS_COST;
@@ -174,8 +192,11 @@ function resolveModelCost(modelId: string): ModelCost {
 }
 
 function resolveModelDisplayName(modelId: string): string {
+  const piModelId = normalizePiModelId(modelId);
   const requestModelId = resolveAgentPlatformRequestModelId(modelId);
-  return DISPLAY_NAMES[modelId] || DISPLAY_NAMES[requestModelId] || modelId;
+  return (
+    DISPLAY_NAMES[modelId] || DISPLAY_NAMES[piModelId] || DISPLAY_NAMES[requestModelId] || modelId
+  );
 }
 
 function sanitizeSurrogates(text: string): string {
@@ -714,8 +735,10 @@ function resolveModelLimits(
   modelId: string,
   overrides: Record<string, ModelLimitsOverride>,
 ): ModelLimits {
+  const piModelId = normalizePiModelId(modelId);
   const defaults =
     DEFAULT_MODEL_LIMITS[modelId] ||
+    DEFAULT_MODEL_LIMITS[piModelId] ||
     (isOneMillionModelAlias(modelId)
       ? {
           contextWindow: ONE_MILLION_CONTEXT_WINDOW,
@@ -726,7 +749,7 @@ function resolveModelLimits(
           maxTokens: DEFAULT_MAX_TOKENS,
         });
 
-  const override = overrides[modelId];
+  const override = overrides[modelId] || overrides[piModelId];
   if (!override) return defaults;
 
   return {
@@ -740,7 +763,8 @@ function resolveEndpointOrderForModel(
   endpointProfiles: Record<EndpointProfileName, AgentPlatformEndpointProfile | undefined>,
   endpointOverrides: Record<string, EndpointProfileName[]>,
 ): AgentPlatformEndpointProfile[] {
-  const overrideOrder = endpointOverrides[modelId];
+  const piModelId = normalizePiModelId(modelId);
+  const overrideOrder = endpointOverrides[modelId] || endpointOverrides[piModelId];
   if (overrideOrder?.length) {
     const overrideProfiles = dedupe(overrideOrder)
       .map((name) => endpointProfiles[name])
@@ -750,6 +774,7 @@ function resolveEndpointOrderForModel(
 
   const defaultOrder =
     DEFAULT_MODEL_ENDPOINT_ORDER[modelId] ||
+    DEFAULT_MODEL_ENDPOINT_ORDER[piModelId] ||
     (isOneMillionModelAlias(modelId) ? ["multi"] : ["multi", "regional"]);
 
   const defaultProfiles = dedupe(defaultOrder)
@@ -798,7 +823,7 @@ function parseAdaptiveThinkingModelIds(): Set<string> {
         .split(",")
         .map((modelId) => modelId.trim())
         .filter(Boolean)
-    : ["claude-opus-4-7"];
+    : ["claude-opus-4.8", "claude-opus-4.7"];
 
   return new Set(modelIds.map((modelId) => resolveAgentPlatformRequestModelId(modelId)));
 }

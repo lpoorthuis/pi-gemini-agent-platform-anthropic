@@ -1,19 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.5.2
 
-- No unreleased changes.
+- Added `claude-opus-4.8` to the default Agent Platform Anthropic model list.
+- Added Opus 4.8 defaults for display name, endpoint routing, 1M-token context, 128K max output, and adaptive thinking.
+- Updated built-in model costs to match the default EU multi-region / `europe-west1` Agent Platform pricing.
 
-## 0.6.0
+## 0.5.1
 
-- **Breaking:** Removed environment-variable aliases. Each configuration knob is now read from exactly one name. Migration:
-  - Project: use `GOOGLE_CLOUD_PROJECT` (removed `GOOGLE_AGENT_PLATFORM_PROJECT`, `AGENT_PLATFORM_PROJECT_ID`, `ANTHROPIC_AGENT_PLATFORM_PROJECT_ID`).
-  - Regional location: use `GOOGLE_CLOUD_LOCATION` (removed `GOOGLE_AGENT_PLATFORM_LOCATION`, `AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION`).
-  - Multi-region location: use `AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION` (removed `ANTHROPIC_AGENT_PLATFORM_LOCATION`).
-  - Multi-region base URL: use `AGENT_PLATFORM_ANTHROPIC_BASE_URL` (removed `ANTHROPIC_AGENT_PLATFORM_BASE_URL`).
-  - Access token override: use `GOOGLE_OAUTH_ACCESS_TOKEN` (removed `AGENT_PLATFORM_ACCESS_TOKEN`).
-- Added `envFirst()` helper to centralize environment-variable lookup.
-- Fixed a latent inconsistency where `resolveRegionalLocation` and `resolveMultiRegionProfile` read the same regional aliases in different priority orders.
+- Repaired orphan Anthropic `tool_use` blocks before sending conversation history.
+- Defensively stripped partial tool calls from errored assistant outputs.
+- Preserved tool-result order while repairing orphan tool uses.
 
 ## 0.5.0
 
@@ -25,11 +22,19 @@
 - Changed default model display names to concise Claude names.
 - Improved the missing-project first-run error with copy-paste setup commands.
 - Changed unknown custom model fallback context window to a conservative `200,000` tokens.
-- Added dash-form Haiku snapshot normalization for users who configure `claude-haiku-4-5-20251001`.
+- Added dash-form Haiku snapshot normalization for users who configure `claude-haiku-4.5-20251001`.
 - Added `AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS` for future adaptive-thinking model snapshots.
 - Added debug-gated stream parse warnings via `AGENT_PLATFORM_ANTHROPIC_DEBUG=1`.
 - Tightened context-overflow normalization scoping to the active Gemini Enterprise Agent Platform Anthropic provider.
-- Updated `claude-sonnet-4-6` max output tokens to `128,000`.
+- Updated `claude-sonnet-4.6` max output tokens to `128,000`.
+- **Breaking:** Removed environment-variable aliases. Each configuration knob is now read from exactly one name. Migration:
+  - Project: use `GOOGLE_CLOUD_PROJECT` (removed `GOOGLE_AGENT_PLATFORM_PROJECT`, `AGENT_PLATFORM_PROJECT_ID`, `ANTHROPIC_AGENT_PLATFORM_PROJECT_ID`).
+  - Regional location: use `GOOGLE_CLOUD_LOCATION` (removed `GOOGLE_AGENT_PLATFORM_LOCATION`, `AGENT_PLATFORM_ANTHROPIC_REGIONAL_LOCATION`).
+  - Multi-region location: use `AGENT_PLATFORM_ANTHROPIC_MULTI_LOCATION` (removed `ANTHROPIC_AGENT_PLATFORM_LOCATION`).
+  - Multi-region base URL: use `AGENT_PLATFORM_ANTHROPIC_BASE_URL` (removed `ANTHROPIC_AGENT_PLATFORM_BASE_URL`).
+  - Access token override: use `GOOGLE_OAUTH_ACCESS_TOKEN` (removed `AGENT_PLATFORM_ACCESS_TOKEN`).
+- Added `envFirst()` helper to centralize environment-variable lookup.
+- Fixed a latent inconsistency where `resolveRegionalLocation` and `resolveMultiRegionProfile` read the same regional aliases in different priority orders.
 
 ## 0.4.0
 
@@ -42,14 +47,18 @@
 - Added per-model endpoint override support.
 - Added per-model context window / max token defaults and overrides.
 - Added support for Claude-style default model env vars (`ANTHROPIC_DEFAULT_*`).
-- Changed default routing for `claude-opus-4-7` to prefer multi-region with regional fallback.
+- Changed default routing for `claude-opus-4.7` to prefer multi-region with regional fallback.
 - Improved endpoint fallback errors to include all attempted endpoints.
 - Added automatic multi-region inference from base URL / regional location.
-- Updated `claude-opus-4-7` default to 1M context and 128k max output tokens.
+- Updated `claude-opus-4.7` default to 1M context and 128k max output tokens.
+
+## 0.3.0
+
+- Added multi-region endpoint support.
 
 ## 0.2.0
 
-- Added `claude-opus-4-7` to default models.
+- Added `claude-opus-4.7` to default models.
 
 ## 0.1.0
 
