@@ -361,34 +361,41 @@ function repairOrphanToolUses(params: any[]): any[] {
     if (toolUseIds.length === 0) continue;
 
     const next = params[i + 1];
-    const existingResultIds = new Set<string>();
+    const existingResults = new Map<string, any>();
+    const trailingContent: any[] = [];
     if (next && next.role === "user" && Array.isArray(next.content)) {
       for (const block of next.content) {
         if (block?.type === "tool_result" && typeof block.tool_use_id === "string") {
-          existingResultIds.add(block.tool_use_id);
+          existingResults.set(block.tool_use_id, block);
+        } else {
+          trailingContent.push(block);
         }
       }
     }
 
-    const missingIds = toolUseIds.filter((id) => !existingResultIds.has(id));
+    const missingIds = toolUseIds.filter((id) => !existingResults.has(id));
     if (missingIds.length === 0) continue;
 
-    const syntheticResults = missingIds.map((id) => ({
+    const createSyntheticResult = (id: string) => ({
       type: "tool_result",
       tool_use_id: id,
       content:
         "Tool execution was interrupted (no result recorded). The assistant should not assume any side effect occurred and may retry if needed.",
       is_error: true,
-    }));
+    });
+
+    const orderedResults = toolUseIds.map(
+      (id) => existingResults.get(id) ?? createSyntheticResult(id),
+    );
 
     if (next && next.role === "user" && Array.isArray(next.content)) {
-      // Prepend synthetic results so they sit alongside the real ones. Anthropic
-      // accepts multiple tool_result blocks in a single user message.
-      next.content = [...syntheticResults, ...next.content];
+      // Keep tool_result blocks in the same order as their assistant tool_use
+      // blocks, preserving any existing user text/image content after them.
+      next.content = [...orderedResults, ...trailingContent];
     } else {
       // No following user message at all (or it's another assistant turn).
       // Insert a brand-new user message with just the synthetic results.
-      repaired.push({ role: "user", content: syntheticResults });
+      repaired.push({ role: "user", content: orderedResults });
     }
 
     if (debugWarningsEnabled()) {
