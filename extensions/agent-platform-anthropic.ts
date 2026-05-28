@@ -317,7 +317,79 @@ function convertMessages(messages: Message[]) {
     }
   }
 
-  return params;
+  return repairOrphanToolUses(params);
+}
+
+/**
+ * Anthropic requires every assistant `tool_use` block to be immediately followed
+ * by a user message containing matching `tool_result` blocks (one per id).
+ *
+ * Sessions can end up with orphan tool_use blocks when an assistant turn fails
+ * mid-stream (e.g. the model errors after emitting a tool_use but before pi
+ * runs the tool), and the user then sends another message instead of letting
+ * the turn be retried. Replaying that history makes the API reject every
+ * subsequent request with a 400.
+ *
+ * To recover gracefully we walk the converted messages and, for any assistant
+ * tool_use whose immediate next message isn't a matching tool_result, we
+ * synthesize an `is_error: true` tool_result so the conversation stays valid.
+ * Real tool_results are never modified.
+ */
+function repairOrphanToolUses(params: any[]): any[] {
+  const repaired: any[] = [];
+
+  for (let i = 0; i < params.length; i++) {
+    const msg = params[i];
+    repaired.push(msg);
+
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+
+    const toolUseIds: string[] = [];
+    for (const block of msg.content) {
+      if (block?.type === "tool_use" && typeof block.id === "string") {
+        toolUseIds.push(block.id);
+      }
+    }
+    if (toolUseIds.length === 0) continue;
+
+    const next = params[i + 1];
+    const existingResultIds = new Set<string>();
+    if (next && next.role === "user" && Array.isArray(next.content)) {
+      for (const block of next.content) {
+        if (block?.type === "tool_result" && typeof block.tool_use_id === "string") {
+          existingResultIds.add(block.tool_use_id);
+        }
+      }
+    }
+
+    const missingIds = toolUseIds.filter((id) => !existingResultIds.has(id));
+    if (missingIds.length === 0) continue;
+
+    const syntheticResults = missingIds.map((id) => ({
+      type: "tool_result",
+      tool_use_id: id,
+      content: "Tool execution was interrupted (no result recorded). The assistant should not assume any side effect occurred and may retry if needed.",
+      is_error: true,
+    }));
+
+    if (next && next.role === "user" && Array.isArray(next.content)) {
+      // Prepend synthetic results so they sit alongside the real ones. Anthropic
+      // accepts multiple tool_result blocks in a single user message.
+      next.content = [...syntheticResults, ...next.content];
+    } else {
+      // No following user message at all (or it's another assistant turn).
+      // Insert a brand-new user message with just the synthetic results.
+      repaired.push({ role: "user", content: syntheticResults });
+    }
+
+    if (debugWarningsEnabled()) {
+      console.warn(
+        `[agent-platform-anthropic] Repaired ${missingIds.length} orphan tool_use id(s): ${missingIds.join(", ")}`,
+      );
+    }
+  }
+
+  return repaired;
 }
 
 function convertTools(tools: Tool[]) {
