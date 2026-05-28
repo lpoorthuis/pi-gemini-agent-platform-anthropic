@@ -368,7 +368,8 @@ function repairOrphanToolUses(params: any[]): any[] {
     const syntheticResults = missingIds.map((id) => ({
       type: "tool_result",
       tool_use_id: id,
-      content: "Tool execution was interrupted (no result recorded). The assistant should not assume any side effect occurred and may retry if needed.",
+      content:
+        "Tool execution was interrupted (no result recorded). The assistant should not assume any side effect occurred and may retry if needed.",
       is_error: true,
     }));
 
@@ -1181,7 +1182,16 @@ function streamAgentPlatformAnthropic(
       });
       stream.end();
     } catch (error) {
+      const toolCallCount = output.content.filter((block) => block.type === "toolCall").length;
+      output.content = output.content.filter((block) => block.type !== "toolCall");
       for (const block of output.content) delete (block as any).index;
+
+      if (toolCallCount > 0 && debugWarningsEnabled()) {
+        console.warn(
+          `[agent-platform-anthropic] Stripped ${toolCallCount} tool call(s) from errored assistant response.`,
+        );
+      }
+
       output.stopReason = options?.signal?.aborted ? "aborted" : "error";
       output.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
       stream.push({ type: "error", reason: output.stopReason, error: output });
