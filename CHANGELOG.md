@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3
+
+- Added `claude-sonnet-5` to the default Agent Platform Anthropic model list.
+- Added Sonnet 5 defaults for display name, endpoint routing, 1M-token context, and 128K max output.
+- Enabled adaptive thinking for `claude-sonnet-5` (uses `thinking.type: adaptive` + `output_config.effort`).
+
 ## 0.5.2
 
 - Added `claude-opus-4.8` to the default Agent Platform Anthropic model list.

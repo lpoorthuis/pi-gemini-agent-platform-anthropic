@@ -34,6 +34,7 @@ const DEFAULT_MODELS = [
   "claude-opus-4.8",
   "claude-opus-4.7",
   "claude-opus-4.6",
+  "claude-sonnet-5",
   "claude-sonnet-4.6",
   "claude-haiku-4.5@20251001",
 ];
@@ -78,6 +79,10 @@ const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: MAX_TOKENS_128K,
   },
+  "claude-sonnet-5": {
+    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
+    maxTokens: MAX_TOKENS_128K,
+  },
   "claude-sonnet-4.6": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: MAX_TOKENS_128K,
@@ -92,6 +97,7 @@ const DEFAULT_MODEL_ENDPOINT_ORDER: Record<string, EndpointProfileName[]> = {
   "claude-opus-4.8": ["multi", "regional"],
   "claude-opus-4.7": ["multi", "regional"],
   "claude-opus-4.6": ["multi", "regional"],
+  "claude-sonnet-5": ["multi", "regional"],
   "claude-sonnet-4.6": ["multi", "regional"],
   "claude-haiku-4.5@20251001": ["multi", "regional"],
 };
@@ -105,6 +111,7 @@ const MODEL_COSTS: Record<string, ModelCost> = {
   "claude-opus-4.8": OPUS_COST,
   "claude-opus-4.7": OPUS_COST,
   "claude-opus-4.6": OPUS_COST,
+  "claude-sonnet-5": SONNET_COST,
   "claude-sonnet-4.6": SONNET_COST,
   "claude-haiku-4.5@20251001": HAIKU_COST,
   "claude-haiku-4.5-20251001": HAIKU_COST,
@@ -114,6 +121,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
   "claude-opus-4.6": "Claude Opus 4.6",
+  "claude-sonnet-5": "Claude Sonnet 5",
   "claude-sonnet-4.6": "Claude Sonnet 4.6",
   "claude-haiku-4.5@20251001": "Claude Haiku 4.5",
   "claude-haiku-4.5-20251001": "Claude Haiku 4.5",
@@ -823,7 +831,7 @@ function parseAdaptiveThinkingModelIds(): Set<string> {
         .split(",")
         .map((modelId) => modelId.trim())
         .filter(Boolean)
-    : ["claude-opus-4.8", "claude-opus-4.7"];
+    : ["claude-opus-4.8", "claude-opus-4.7", "claude-sonnet-5"];
 
   return new Set(modelIds.map((modelId) => resolveAgentPlatformRequestModelId(modelId)));
 }
