@@ -3,7 +3,7 @@
 ## 0.5.3
 
 - Added `claude-sonnet-5` to the default Agent Platform Anthropic model list.
-- Added Sonnet 5 defaults for display name, endpoint routing, 1M-token context, and 128K max output.
+- Added Sonnet 5 defaults for display name, multi-region-only endpoint routing, 1M-token context, 128K max output, and EU multi-region pricing.
 - Enabled adaptive thinking for `claude-sonnet-5` (uses `thinking.type: adaptive` + `output_config.effort`).
 
 ## 0.5.2
