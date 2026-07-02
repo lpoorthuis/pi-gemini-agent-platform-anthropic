@@ -57,9 +57,9 @@ Each knob has exactly one environment-variable name. There are no aliases.
 | `AGENT_PLATFORM_ANTHROPIC_BASE_URL` | Multi-region base URL override | inferred from multi-region location |
 | `GOOGLE_OAUTH_ACCESS_TOKEN` | Pre-fetched OAuth access token (skips `gcloud`) | obtained via ADC |
 | `AGENT_PLATFORM_ANTHROPIC_MODELS` | Comma-separated model list override | built-in defaults |
-| `AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS` | Per-model endpoint routing override | multi → regional |
+| `AGENT_PLATFORM_ANTHROPIC_MODEL_ENDPOINTS` | Per-model endpoint routing override | built-in per-model routing |
 | `AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS` | Per-model `contextWindow:maxTokens` override | built-in defaults |
-| `AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS` | Models that use Agent Platform adaptive thinking | `claude-opus-4.8,claude-opus-4.7` |
+| `AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS` | Models that use Agent Platform adaptive thinking | `claude-opus-4.8,claude-opus-4.7,claude-sonnet-5` |
 | `AGENT_PLATFORM_ANTHROPIC_DEBUG` | Set to `1` to log SSE parse failures | off |
 
 Supported multi-region locations:
@@ -72,7 +72,7 @@ Notes:
 
 - If no multi-region env vars are set, the extension defaults to `eu`.
 - If only `GOOGLE_CLOUD_LOCATION` is set, the multi-region location is inferred (`europe-*` → `eu`, `us-*` → `us`).
-- Model routing is multi-region first, regional fallback second unless overridden.
+- Default routing is per model. Most models try multi-region first, then regional fallback; `claude-sonnet-5` is multi-region only because it is not supported on regional endpoints.
 
 The extension also reads the standard Claude-Code model hints when `AGENT_PLATFORM_ANTHROPIC_MODELS` is not set: `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `ANTHROPIC_SMALL_FAST_MODEL`.
 
@@ -117,24 +117,25 @@ export AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS='{"claude-opus-4.8":{"contextWindow
 **Adaptive-thinking models** (comma-separated):
 
 ```bash
-export AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS="claude-opus-4.8,claude-opus-4.7"
+export AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS="claude-opus-4.8,claude-opus-4.7,claude-sonnet-5"
 ```
 
 ## Defaults for routing, limits, and costs
 
-The extension prefers the configured multi-region endpoint first, then falls back to the configured regional endpoint when the model is unavailable there or the multi-region endpoint returns quota exhaustion (`429`). The built-in costs below use the default EU multi-region / `europe-west1` pricing.
+The extension uses each model's built-in routing order. Most models prefer the configured multi-region endpoint first, then fall back to the configured regional endpoint when the model is unavailable there or the multi-region endpoint returns quota exhaustion (`429`); `claude-sonnet-5` uses multi-region only because it is not supported on regional endpoints. The built-in costs below use the default EU multi-region pricing, with `europe-west1` pricing for models that support the regional fallback.
 
 | Model | Routing order | Context window | Max output | Cost, USD / 1M tokens |
 | --- | --- | ---: | ---: | --- |
 | `claude-opus-4.8` | multi → regional | 1,000,000 | 128,000 | input 5.5, output 27.5, cache read 0.55, 5m cache write 6.875 |
 | `claude-opus-4.7` | multi → regional | 1,000,000 | 128,000 | input 5.5, output 27.5, cache read 0.55, 5m cache write 6.875 |
 | `claude-opus-4.6` | multi → regional | 1,000,000 | 128,000 | input 5.5, output 27.5, cache read 0.55, 5m cache write 6.875 |
+| `claude-sonnet-5` | multi | 1,000,000 | 128,000 | input 3.3, output 16.5, cache read 0.33, 5m cache write 4.125 |
 | `claude-sonnet-4.6` | multi → regional | 1,000,000 | 128,000 | input 3.3, output 16.5, cache read 0.33, 5m cache write 4.13 |
 | `claude-haiku-4.5@20251001` | multi → regional | 200,000 | 64,000 | input 1.1, output 5.5, cache read 0.11, 5m cache write 1.375 |
 
 Unknown custom models default to a conservative 200,000-token context window and 64,000 max output tokens unless overridden with `AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS`.
 
-For reasoning, `claude-opus-4.8` and `claude-opus-4.7` use the current Agent Platform adaptive thinking format (`thinking.type: adaptive` plus `output_config.effort`). Their pi `xhigh` level maps to Agent Platform effort `max`; `minimal` and `low` map to `low`. Other Claude models use Anthropic `thinking.type: enabled` with `budget_tokens`.
+For reasoning, `claude-opus-4.8`, `claude-opus-4.7`, and `claude-sonnet-5` use the current Agent Platform adaptive thinking format (`thinking.type: adaptive` plus `output_config.effort`). Their pi `xhigh` level maps to Agent Platform effort `max`; `minimal` and `low` map to `low`. Other Claude models use Anthropic `thinking.type: enabled` with `budget_tokens`.
 
 ## Versioning and updates
 

@@ -97,12 +97,13 @@ const DEFAULT_MODEL_ENDPOINT_ORDER: Record<string, EndpointProfileName[]> = {
   "claude-opus-4.8": ["multi", "regional"],
   "claude-opus-4.7": ["multi", "regional"],
   "claude-opus-4.6": ["multi", "regional"],
-  "claude-sonnet-5": ["multi", "regional"],
+  "claude-sonnet-5": ["multi"],
   "claude-sonnet-4.6": ["multi", "regional"],
   "claude-haiku-4.5@20251001": ["multi", "regional"],
 };
 
 const OPUS_COST: ModelCost = { input: 5.5, output: 27.5, cacheRead: 0.55, cacheWrite: 6.875 };
+const SONNET_5_COST: ModelCost = { input: 3.3, output: 16.5, cacheRead: 0.33, cacheWrite: 4.125 };
 const SONNET_COST: ModelCost = { input: 3.3, output: 16.5, cacheRead: 0.33, cacheWrite: 4.13 };
 const HAIKU_COST: ModelCost = { input: 1.1, output: 5.5, cacheRead: 0.11, cacheWrite: 1.375 };
 const DEFAULT_MODEL_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -111,7 +112,7 @@ const MODEL_COSTS: Record<string, ModelCost> = {
   "claude-opus-4.8": OPUS_COST,
   "claude-opus-4.7": OPUS_COST,
   "claude-opus-4.6": OPUS_COST,
-  "claude-sonnet-5": SONNET_COST,
+  "claude-sonnet-5": SONNET_5_COST,
   "claude-sonnet-4.6": SONNET_COST,
   "claude-haiku-4.5@20251001": HAIKU_COST,
   "claude-haiku-4.5-20251001": HAIKU_COST,
