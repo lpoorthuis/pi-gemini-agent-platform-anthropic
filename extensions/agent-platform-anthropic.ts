@@ -31,6 +31,7 @@ const ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000;
 const AGENT_PLATFORM_OVERFLOW_PATTERN = /token limit|context.*exceed|too many tokens/i;
 
 const DEFAULT_MODELS = [
+  "claude-opus-5",
   "claude-opus-4.8",
   "claude-opus-4.7",
   "claude-opus-4.6",
@@ -67,6 +68,10 @@ interface RuntimeConfig {
 }
 
 const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
+  "claude-opus-5": {
+    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
+    maxTokens: MAX_TOKENS_128K,
+  },
   "claude-opus-4.8": {
     contextWindow: ONE_MILLION_CONTEXT_WINDOW,
     maxTokens: MAX_TOKENS_128K,
@@ -94,6 +99,7 @@ const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
 };
 
 const DEFAULT_MODEL_ENDPOINT_ORDER: Record<string, EndpointProfileName[]> = {
+  "claude-opus-5": ["multi"],
   "claude-opus-4.8": ["multi", "regional"],
   "claude-opus-4.7": ["multi", "regional"],
   "claude-opus-4.6": ["multi", "regional"],
@@ -109,6 +115,7 @@ const HAIKU_COST: ModelCost = { input: 1.1, output: 5.5, cacheRead: 0.11, cacheW
 const DEFAULT_MODEL_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
 const MODEL_COSTS: Record<string, ModelCost> = {
+  "claude-opus-5": OPUS_COST,
   "claude-opus-4.8": OPUS_COST,
   "claude-opus-4.7": OPUS_COST,
   "claude-opus-4.6": OPUS_COST,
@@ -119,6 +126,7 @@ const MODEL_COSTS: Record<string, ModelCost> = {
 };
 
 const DISPLAY_NAMES: Record<string, string> = {
+  "claude-opus-5": "Claude Opus 5",
   "claude-opus-4.8": "Claude Opus 4.8",
   "claude-opus-4.7": "Claude Opus 4.7",
   "claude-opus-4.6": "Claude Opus 4.6",
@@ -832,7 +840,7 @@ function parseAdaptiveThinkingModelIds(): Set<string> {
         .split(",")
         .map((modelId) => modelId.trim())
         .filter(Boolean)
-    : ["claude-opus-4.8", "claude-opus-4.7", "claude-sonnet-5"];
+    : ["claude-opus-5", "claude-opus-4.8", "claude-opus-4.7", "claude-sonnet-5"];
 
   return new Set(modelIds.map((modelId) => resolveAgentPlatformRequestModelId(modelId)));
 }

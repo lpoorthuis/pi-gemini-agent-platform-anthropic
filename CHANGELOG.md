@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- Added `claude-opus-5` to the default Agent Platform Anthropic model list.
+- Added Opus 5 defaults for its `claude-opus-5` publisher ID, multi-region-only routing, 1M-token context, 128K max output, and EU multi-region pricing.
+- Enabled adaptive thinking for `claude-opus-5`.
+
 ## 0.5.3
 
 - Added `claude-sonnet-5` to the default Agent Platform Anthropic model list.
