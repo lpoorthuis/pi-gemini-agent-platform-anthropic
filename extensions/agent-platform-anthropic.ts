@@ -4,6 +4,7 @@ import {
   type AssistantMessage,
   type AssistantMessageEventStream,
   calculateCost,
+  clampThinkingLevel,
   collapseSystemMessages,
   createAssistantMessageEventStream,
   getCurrentSystemPrompt,
@@ -12,7 +13,11 @@ import {
   type ImageContent,
   type Message,
   type Model,
+  type ModelCost,
+  type RefreshModelsContext,
   type SimpleStreamOptions,
+  type ThinkingLevel,
+  type ThinkingLevelMap,
   type StopReason,
   type TextContent,
   type ThinkingContent,
@@ -20,28 +25,22 @@ import {
   type ToolCall,
   type ToolResultMessage,
 } from "@earendil-works/pi-ai";
+import { getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const DEFAULT_LOCATION = "europe-west1";
 const DEFAULT_MULTI_LOCATION = "eu";
 const DEFAULT_CONTEXT_WINDOW = 200000;
-const HAIKU_CONTEXT_WINDOW = 200000;
 const ONE_MILLION_CONTEXT_WINDOW = 1000000;
 const DEFAULT_MAX_TOKENS = 64000;
-const MAX_TOKENS_128K = 128000;
 const ANTHROPIC_VERSION = "vertex-2023-10-16";
 const ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000;
+const PROVIDER_ID = "agent-platform-anthropic";
+const PROVIDER_API = "agent-platform-anthropic-api";
+const PROVIDER_BASE_URL = "https://aiplatform.googleapis.com/v1";
 const AGENT_PLATFORM_OVERFLOW_PATTERN = /token limit|context.*exceed|too many tokens/i;
 
-const DEFAULT_MODELS = [
-  "claude-opus-5",
-  "claude-opus-4.8",
-  "claude-opus-4.7",
-  "claude-opus-4.6",
-  "claude-sonnet-5",
-  "claude-sonnet-4.6",
-  "claude-haiku-4.5@20251001",
-];
+const MULTI_REGION_ONLY_MODEL_IDS = new Set(["claude-opus-5", "claude-sonnet-5"]);
 
 type EndpointProfileName = "regional" | "multi";
 
@@ -56,98 +55,201 @@ interface ModelLimits {
   maxTokens: number;
 }
 
-interface ModelCost {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-}
-
 type ModelLimitsOverride = Partial<ModelLimits>;
+type ModelMetadata = Omit<Model<Api>, "api" | "provider" | "baseUrl" | "headers">;
 
 interface RuntimeConfig {
   endpointProfiles: Record<EndpointProfileName, AgentPlatformEndpointProfile | undefined>;
   endpointOverrides: Record<string, EndpointProfileName[]>;
 }
 
-const DEFAULT_MODEL_LIMITS: Record<string, ModelLimits> = {
-  "claude-opus-5": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: MAX_TOKENS_128K,
-  },
-  "claude-opus-4.8": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: MAX_TOKENS_128K,
-  },
-  "claude-opus-4.7": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: MAX_TOKENS_128K,
-  },
-  "claude-opus-4.6": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: MAX_TOKENS_128K,
-  },
-  "claude-sonnet-5": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: MAX_TOKENS_128K,
-  },
-  "claude-sonnet-4.6": {
-    contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-    maxTokens: MAX_TOKENS_128K,
-  },
-  "claude-haiku-4.5@20251001": {
-    contextWindow: HAIKU_CONTEXT_WINDOW,
-    maxTokens: DEFAULT_MAX_TOKENS,
-  },
-};
+const PI_CATALOG_URL = "https://pi.dev/api/models/providers/anthropic";
+const CATALOG_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+const CATALOG_SCOPE = "pi-anthropic-v1";
 
-const DEFAULT_MODEL_ENDPOINT_ORDER: Record<string, EndpointProfileName[]> = {
-  "claude-opus-5": ["multi"],
-  "claude-opus-4.8": ["multi", "regional"],
-  "claude-opus-4.7": ["multi", "regional"],
-  "claude-opus-4.6": ["multi", "regional"],
-  "claude-sonnet-5": ["multi"],
-  "claude-sonnet-4.6": ["multi", "regional"],
-  "claude-haiku-4.5@20251001": ["multi", "regional"],
-};
+function dedupe<T>(values: readonly T[]): T[] {
+  return [...new Set(values)];
+}
 
-const OPUS_COST: ModelCost = { input: 5.5, output: 27.5, cacheRead: 0.55, cacheWrite: 6.875 };
-const SONNET_5_COST: ModelCost = { input: 3.3, output: 16.5, cacheRead: 0.33, cacheWrite: 4.125 };
-const SONNET_COST: ModelCost = { input: 3.3, output: 16.5, cacheRead: 0.33, cacheWrite: 4.13 };
-const HAIKU_COST: ModelCost = { input: 1.1, output: 5.5, cacheRead: 0.11, cacheWrite: 1.375 };
-const DEFAULT_MODEL_COST: ModelCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+function normalizePiModelId(id: string): string {
+  return id.replace(/^(claude-(?:opus|sonnet|haiku|fable)-4)-(\d)/i, "$1.$2");
+}
 
-const MODEL_COSTS: Record<string, ModelCost> = {
-  "claude-opus-5": OPUS_COST,
-  "claude-opus-4.8": OPUS_COST,
-  "claude-opus-4.7": OPUS_COST,
-  "claude-opus-4.6": OPUS_COST,
-  "claude-sonnet-5": SONNET_5_COST,
-  "claude-sonnet-4.6": SONNET_COST,
-  "claude-haiku-4.5@20251001": HAIKU_COST,
-  "claude-haiku-4.5-20251001": HAIKU_COST,
-};
+function normalizePublisherModelId(id: string): string {
+  return normalizePiModelId(id)
+    .replace(/^(claude-(?:opus|sonnet|haiku|fable)-4)\.(\d)/i, "$1-$2")
+    .replace(/^(claude-(?:opus|sonnet|haiku|fable)-\d+(?:-\d+)?)-(\d{8})$/i, "$1@$2");
+}
 
-const DISPLAY_NAMES: Record<string, string> = {
-  "claude-opus-5": "Claude Opus 5",
-  "claude-opus-4.8": "Claude Opus 4.8",
-  "claude-opus-4.7": "Claude Opus 4.7",
-  "claude-opus-4.6": "Claude Opus 4.6",
-  "claude-sonnet-5": "Claude Sonnet 5",
-  "claude-sonnet-4.6": "Claude Sonnet 4.6",
-  "claude-haiku-4.5@20251001": "Claude Haiku 4.5",
-  "claude-haiku-4.5-20251001": "Claude Haiku 4.5",
-};
+function normalizeCatalogModelId(id: string): string {
+  return normalizePublisherModelId(id).replace(/@(\d{8})$/u, "-$1");
+}
 
-type AdaptiveThinkingEffort = "low" | "medium" | "high" | "max";
+function canonicalModelId(id: string, stripAlias = false): string {
+  const value = stripAlias ? id.replace(/\[1m\]/gi, "").trim() : id;
+  return normalizePublisherModelId(value).toLowerCase();
+}
 
-const ADAPTIVE_THINKING_LEVEL_MAP: Record<string, AdaptiveThinkingEffort> = {
-  minimal: "low",
-  low: "low",
-  medium: "medium",
-  high: "high",
-  xhigh: "max",
-};
+function findMetadata(id: string, models: readonly ModelMetadata[]): ModelMetadata | undefined {
+  return (
+    models.find((model) => canonicalModelId(model.id) === canonicalModelId(id)) ??
+    models.find((model) => canonicalModelId(model.id, true) === canonicalModelId(id, true))
+  );
+}
+
+function dedupeModelIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return ids.filter((id) => {
+    const key = canonicalModelId(id);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function parseModelList(raw: string | undefined): string[] | undefined {
+  if (!raw?.trim()) return undefined;
+  const ids = dedupe(
+    raw
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+  return ids.length ? ids : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRate(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isInputLimits(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isRecord(value)) return false;
+  const positive = (n: unknown) => n === undefined || (isRate(n) && n > 0);
+  if (!positive(value.maxRequestBytes)) return false;
+  if (value.images === undefined) return true;
+  if (!isRecord(value.images)) return false;
+  const images = value.images;
+  if (!positive(images.maxPerMessage) || !positive(images.maxPerRequest)) return false;
+  if (images.resize === undefined) return true;
+  if (!isRecord(images.resize)) return false;
+  const resize = images.resize;
+  return (
+    [resize.maxWidth, resize.maxHeight, resize.maxBytes, resize.jpegQuality].every(positive) &&
+    (resize.jpegQuality === undefined ||
+      (typeof resize.jpegQuality === "number" && resize.jpegQuality <= 100))
+  );
+}
+
+function parseCatalog(payload: unknown): ModelMetadata[] {
+  const root = isRecord(payload) && payload.models !== undefined ? payload.models : payload;
+  const entries = Array.isArray(root)
+    ? root.map((value) => [undefined, value] as const)
+    : isRecord(root)
+      ? Object.entries(root)
+      : [];
+  if (!entries.length) throw new Error("Pi Anthropic model catalog is empty or malformed.");
+
+  return entries.map(([key, value]) => {
+    if (!isRecord(value) || !isRecord(value.cost) || !Array.isArray(value.input)) {
+      throw new Error("Pi Anthropic model catalog contains a malformed model.");
+    }
+    const id = typeof value.id === "string" ? value.id : key;
+    const rates = [
+      value.cost.input,
+      value.cost.output,
+      value.cost.cacheRead,
+      value.cost.cacheWrite,
+    ];
+    const validTiers =
+      value.cost.tiers === undefined ||
+      (Array.isArray(value.cost.tiers) &&
+        value.cost.tiers.every(
+          (tier) =>
+            isRecord(tier) &&
+            isRate(tier.inputTokensAbove) &&
+            [tier.input, tier.output, tier.cacheRead, tier.cacheWrite].every(isRate),
+        ));
+    const validThinkingMap =
+      value.thinkingLevelMap === undefined ||
+      (isRecord(value.thinkingLevelMap) &&
+        Object.values(value.thinkingLevelMap).every(
+          (mapped) => mapped === null || typeof mapped === "string",
+        ));
+    if (
+      !id ||
+      typeof value.reasoning !== "boolean" ||
+      !value.input.length ||
+      !value.input.every((input) => input === "text" || input === "image") ||
+      !rates.every(isRate) ||
+      !validTiers ||
+      !validThinkingMap ||
+      !isInputLimits(value.inputLimits) ||
+      (value.promptCache !== undefined &&
+        (!isRecord(value.promptCache) ||
+          ![value.promptCache.short, value.promptCache.long].every(
+            (ttl) => ttl === undefined || (isRate(ttl) && ttl > 0),
+          ))) ||
+      typeof value.contextWindow !== "number" ||
+      !Number.isFinite(value.contextWindow) ||
+      value.contextWindow <= 0 ||
+      typeof value.maxTokens !== "number" ||
+      !Number.isFinite(value.maxTokens) ||
+      value.maxTokens <= 0
+    ) {
+      throw new Error("Pi Anthropic model catalog contains a malformed model.");
+    }
+    return toInheritedMetadata({
+      ...value,
+      id,
+      name: typeof value.name === "string" ? value.name : id,
+    } as unknown as Model<Api>);
+  });
+}
+
+function scaleCost(cost: ModelCost, multiplier: number): ModelCost {
+  const scale = (value: number) => Math.round(value * multiplier * 1e9) / 1e9;
+  return {
+    input: scale(cost.input),
+    output: scale(cost.output),
+    cacheRead: scale(cost.cacheRead),
+    cacheWrite: scale(cost.cacheWrite),
+    ...(cost.tiers
+      ? {
+          tiers: cost.tiers.map((tier) => ({
+            ...tier,
+            input: scale(tier.input),
+            output: scale(tier.output),
+            cacheRead: scale(tier.cacheRead),
+            cacheWrite: scale(tier.cacheWrite),
+          })),
+        }
+      : {}),
+  };
+}
+
+function mapAdaptiveEffort(model: Pick<ModelMetadata, "thinkingLevelMap">, level: ThinkingLevel) {
+  const mapped = model.thinkingLevelMap?.[level];
+  if (["low", "medium", "high", "xhigh", "max"].includes(mapped ?? "")) return mapped;
+  if (level === "minimal" || level === "low") return "low";
+  return level === "medium" ? "medium" : "high";
+}
+
+function modelCostMultiplier(multiRegion: string | undefined): number {
+  return multiRegion?.trim().toLowerCase() === "global" ? 1 : 1.1;
+}
+
+function withoutAdaptiveOnlyLevels(
+  map: ThinkingLevelMap | undefined,
+): ThinkingLevelMap | undefined {
+  if (!map) return undefined;
+  const { xhigh: _xhigh, max: _max, ...budgetLevels } = map;
+  return Object.keys(budgetLevels).length ? budgetLevels : undefined;
+}
 
 let cachedAccessToken: { value: string; expiresAt: number } | undefined;
 
@@ -157,10 +259,6 @@ function envFirst(...names: string[]): string | undefined {
     if (value) return value;
   }
   return undefined;
-}
-
-function dedupe<T>(values: T[]): T[] {
-  return [...new Set(values)];
 }
 
 function parsePositiveInt(value: unknown): number | undefined {
@@ -182,41 +280,8 @@ function stripOneMillionModelAlias(modelId: string): string {
   return isOneMillionModelAlias(modelId) ? modelId.replace(/\[1m\]/gi, "").trim() : modelId;
 }
 
-function normalizePiModelId(modelId: string): string {
-  return modelId.replace(/^(claude-(?:opus|sonnet|haiku)-4)-(\d)/i, "$1.$2");
-}
-
-function normalizeAnthropicPublisherModelId(modelId: string): string {
-  const requestModelId = normalizePiModelId(modelId).replace(
-    /^(claude-(?:opus|sonnet|haiku)-4)\.(\d)/i,
-    "$1-$2",
-  );
-  return requestModelId.replace(/^(claude-haiku-4)-(5)-(\d{8})$/i, "$1-$2@$3");
-}
-
 function resolveAgentPlatformRequestModelId(modelId: string): string {
-  return normalizeAnthropicPublisherModelId(stripOneMillionModelAlias(modelId));
-}
-
-function resolveModelCost(modelId: string): ModelCost {
-  const piModelId = normalizePiModelId(modelId);
-  const requestModelId = resolveAgentPlatformRequestModelId(modelId);
-  const configuredCost =
-    MODEL_COSTS[modelId] || MODEL_COSTS[piModelId] || MODEL_COSTS[requestModelId];
-  if (configuredCost) return configuredCost;
-
-  if (/claude-opus/i.test(requestModelId)) return OPUS_COST;
-  if (/claude-sonnet/i.test(requestModelId)) return SONNET_COST;
-  if (/claude-haiku/i.test(requestModelId)) return HAIKU_COST;
-  return DEFAULT_MODEL_COST;
-}
-
-function resolveModelDisplayName(modelId: string): string {
-  const piModelId = normalizePiModelId(modelId);
-  const requestModelId = resolveAgentPlatformRequestModelId(modelId);
-  return (
-    DISPLAY_NAMES[modelId] || DISPLAY_NAMES[piModelId] || DISPLAY_NAMES[requestModelId] || modelId
-  );
+  return normalizePublisherModelId(stripOneMillionModelAlias(modelId));
 }
 
 function sanitizeSurrogates(text: string): string {
@@ -751,25 +816,32 @@ function parseModelLimitsOverrides(): Record<string, ModelLimitsOverride> {
   return overrides;
 }
 
+function resolveModelConfig<T>(config: Record<string, T>, modelId: string): T | undefined {
+  const aliases = dedupe([
+    modelId,
+    normalizePiModelId(modelId),
+    resolveAgentPlatformRequestModelId(modelId),
+    normalizeCatalogModelId(modelId),
+  ]);
+  for (const alias of aliases) {
+    if (config[alias] !== undefined) return config[alias];
+  }
+  return undefined;
+}
+
 function resolveModelLimits(
   modelId: string,
   overrides: Record<string, ModelLimitsOverride>,
+  inherited?: Pick<ModelMetadata, "contextWindow" | "maxTokens">,
 ): ModelLimits {
-  const piModelId = normalizePiModelId(modelId);
-  const defaults =
-    DEFAULT_MODEL_LIMITS[modelId] ||
-    DEFAULT_MODEL_LIMITS[piModelId] ||
-    (isOneMillionModelAlias(modelId)
-      ? {
-          contextWindow: ONE_MILLION_CONTEXT_WINDOW,
-          maxTokens: DEFAULT_MAX_TOKENS,
-        }
-      : {
-          contextWindow: DEFAULT_CONTEXT_WINDOW,
-          maxTokens: DEFAULT_MAX_TOKENS,
-        });
+  const defaults = {
+    contextWindow: isOneMillionModelAlias(modelId)
+      ? ONE_MILLION_CONTEXT_WINDOW
+      : (inherited?.contextWindow ?? DEFAULT_CONTEXT_WINDOW),
+    maxTokens: inherited?.maxTokens ?? DEFAULT_MAX_TOKENS,
+  };
 
-  const override = overrides[modelId] || overrides[piModelId];
+  const override = resolveModelConfig(overrides, modelId);
   if (!override) return defaults;
 
   return {
@@ -783,8 +855,7 @@ function resolveEndpointOrderForModel(
   endpointProfiles: Record<EndpointProfileName, AgentPlatformEndpointProfile | undefined>,
   endpointOverrides: Record<string, EndpointProfileName[]>,
 ): AgentPlatformEndpointProfile[] {
-  const piModelId = normalizePiModelId(modelId);
-  const overrideOrder = endpointOverrides[modelId] || endpointOverrides[piModelId];
+  const overrideOrder = resolveModelConfig(endpointOverrides, modelId);
   if (overrideOrder?.length) {
     const overrideProfiles = dedupe(overrideOrder)
       .map((name) => endpointProfiles[name])
@@ -792,10 +863,11 @@ function resolveEndpointOrderForModel(
     if (overrideProfiles.length) return overrideProfiles;
   }
 
-  const defaultOrder =
-    DEFAULT_MODEL_ENDPOINT_ORDER[modelId] ||
-    DEFAULT_MODEL_ENDPOINT_ORDER[piModelId] ||
-    (isOneMillionModelAlias(modelId) ? ["multi"] : ["multi", "regional"]);
+  const requestModelId = resolveAgentPlatformRequestModelId(modelId);
+  const defaultOrder: EndpointProfileName[] =
+    isOneMillionModelAlias(modelId) || MULTI_REGION_ONLY_MODEL_IDS.has(requestModelId)
+      ? ["multi"]
+      : ["multi", "regional"];
 
   const defaultProfiles = dedupe(defaultOrder)
     .map((name) => endpointProfiles[name])
@@ -836,26 +908,29 @@ function isRetryableAtNextEndpoint(status: number, bodyText: string): boolean {
   );
 }
 
-function parseAdaptiveThinkingModelIds(): Set<string> {
-  const raw = envFirst("AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS");
-  const modelIds = raw
-    ? raw
-        .split(",")
-        .map((modelId) => modelId.trim())
-        .filter(Boolean)
-    : ["claude-opus-5", "claude-opus-4.8", "claude-opus-4.7", "claude-sonnet-5"];
-
-  return new Set(modelIds.map((modelId) => resolveAgentPlatformRequestModelId(modelId)));
+function parseAdaptiveThinkingModelIds(): Set<string> | undefined {
+  const modelIds = parseModelList(envFirst("AGENT_PLATFORM_ANTHROPIC_ADAPTIVE_MODELS"));
+  return modelIds
+    ? new Set(modelIds.map((modelId) => resolveAgentPlatformRequestModelId(modelId)))
+    : undefined;
 }
 
 const ADAPTIVE_THINKING_MODEL_IDS = parseAdaptiveThinkingModelIds();
 
-function usesAdaptiveThinking(modelId: string): boolean {
-  return ADAPTIVE_THINKING_MODEL_IDS.has(resolveAgentPlatformRequestModelId(modelId));
+function hasForceAdaptiveThinking(compat: unknown): boolean {
+  return (
+    typeof compat === "object" &&
+    compat !== null &&
+    "forceAdaptiveThinking" in compat &&
+    compat.forceAdaptiveThinking === true
+  );
 }
 
-function mapReasoningEffort(reasoning: string): AdaptiveThinkingEffort {
-  return ADAPTIVE_THINKING_LEVEL_MAP[reasoning] ?? "medium";
+function usesAdaptiveThinking(model: { id: string; compat?: unknown }): boolean {
+  if (ADAPTIVE_THINKING_MODEL_IDS) {
+    return ADAPTIVE_THINKING_MODEL_IDS.has(resolveAgentPlatformRequestModelId(model.id));
+  }
+  return hasForceAdaptiveThinking(model.compat);
 }
 
 function resolveProjectId(): string {
@@ -986,7 +1061,7 @@ function streamAgentPlatformAnthropic(
       const requestModelId = resolveAgentPlatformRequestModelId(model.id);
       const maxTokens = options?.maxTokens || Math.floor(model.maxTokens / 3);
 
-      const body: any = {
+      const body: Record<string, unknown> = {
         anthropic_version: ANTHROPIC_VERSION,
         messages: convertMessages(transcript.messages),
         max_tokens: maxTokens,
@@ -994,12 +1069,15 @@ function streamAgentPlatformAnthropic(
       };
       if (systemPrompt) body.system = sanitizeSurrogates(systemPrompt);
       if (tools.length > 0) body.tools = convertTools(tools);
-      addPromptCaching(body);
+      if (options?.cacheRetention !== "none") addPromptCaching(body);
 
-      if (options?.reasoning && model.reasoning) {
-        if (usesAdaptiveThinking(model.id)) {
+      const reasoning = clampThinkingLevel(model, options?.reasoning ?? "off");
+      if (reasoning !== "off" && model.reasoning) {
+        if (usesAdaptiveThinking(model)) {
           body.thinking = { type: "adaptive" };
-          body.output_config = { effort: mapReasoningEffort(options.reasoning) };
+          body.output_config = {
+            effort: mapAdaptiveEffort(model, reasoning),
+          };
         } else {
           const defaultBudgets: Record<string, number> = {
             minimal: 1024,
@@ -1009,10 +1087,12 @@ function streamAgentPlatformAnthropic(
             xhigh: 65536,
           };
           const customBudget =
-            options.thinkingBudgets?.[options.reasoning as keyof typeof options.thinkingBudgets];
+            reasoning === "max" || reasoning === "xhigh"
+              ? undefined
+              : options?.thinkingBudgets?.[reasoning];
           body.thinking = {
             type: "enabled",
-            budget_tokens: customBudget ?? defaultBudgets[options.reasoning] ?? 10240,
+            budget_tokens: customBudget ?? defaultBudgets[reasoning] ?? 10240,
           };
         }
       }
@@ -1234,29 +1314,213 @@ function streamAgentPlatformAnthropic(
   return stream;
 }
 
-function parseModelListFromEnv(): string[] {
-  const explicitList = envFirst("AGENT_PLATFORM_ANTHROPIC_MODELS");
-  if (explicitList) {
-    return dedupe(
-      explicitList
-        .split(",")
-        .map((m) => m.trim())
-        .filter(Boolean),
-    );
-  }
-
-  const anthropicDefaults = dedupe(
+function parseAnthropicModelHints(): string[] {
+  return dedupe(
     [
       process.env.ANTHROPIC_DEFAULT_OPUS_MODEL,
       process.env.ANTHROPIC_DEFAULT_SONNET_MODEL,
       process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
       process.env.ANTHROPIC_SMALL_FAST_MODEL,
     ]
-      .map((m) => m?.trim())
-      .filter(Boolean) as string[],
+      .map((modelId) => modelId?.trim())
+      .filter((modelId): modelId is string => Boolean(modelId)),
   );
+}
 
-  return dedupe([...anthropicDefaults, ...DEFAULT_MODELS]);
+function toInheritedMetadata(model: Model<Api>): ModelMetadata {
+  return {
+    id: model.id,
+    name: model.name,
+    reasoning: model.reasoning,
+    ...(model.thinkingLevelMap ? { thinkingLevelMap: model.thinkingLevelMap } : {}),
+    input: [...model.input],
+    ...(model.inputLimits ? { inputLimits: model.inputLimits } : {}),
+    // This transport writes only default (5-minute) ephemeral cache entries.
+    ...(model.promptCache?.short
+      ? { promptCache: { short: Math.min(model.promptCache.short, 300) } }
+      : {}),
+    cost: model.cost,
+    contextWindow: model.contextWindow,
+    maxTokens: model.maxTokens,
+    ...(hasForceAdaptiveThinking(model.compat) ? { compat: { forceAdaptiveThinking: true } } : {}),
+  };
+}
+
+function bundledPiAnthropicMetadata(): ModelMetadata[] {
+  return getBuiltinModels("anthropic").map((model) => toInheritedMetadata(model));
+}
+
+function fallbackModelMetadata(modelId: string): ModelMetadata {
+  const id = normalizePiModelId(modelId);
+  const limits = resolveModelLimits(id, {});
+  return {
+    id,
+    name: id,
+    reasoning: true,
+    input: ["text", "image"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: limits.contextWindow,
+    maxTokens: limits.maxTokens,
+  };
+}
+
+function buildProviderModels(
+  modelIds: readonly string[],
+  inheritedCatalog: readonly ModelMetadata[],
+  modelLimitsOverrides: Record<string, ModelLimitsOverride>,
+  costMultiplier: number,
+  preserveConfiguredIds: boolean,
+): ModelMetadata[] {
+  const ids = preserveConfiguredIds ? dedupe(modelIds) : dedupeModelIds(modelIds);
+  return ids.map((configuredId) => {
+    const id = preserveConfiguredIds ? configuredId : normalizePiModelId(configuredId);
+    const inherited = findMetadata(id, inheritedCatalog);
+    const limits = resolveModelLimits(id, modelLimitsOverrides, inherited);
+    const inheritedAdaptive = hasForceAdaptiveThinking(inherited?.compat);
+    const adaptive = usesAdaptiveThinking({ id, compat: inherited?.compat });
+    const thinkingLevelMap =
+      ADAPTIVE_THINKING_MODEL_IDS && inheritedAdaptive && !adaptive
+        ? withoutAdaptiveOnlyLevels(inherited?.thinkingLevelMap)
+        : inherited?.thinkingLevelMap;
+    return {
+      id,
+      name: inherited?.name ?? id,
+      reasoning: inherited?.reasoning ?? true,
+      ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+      input: inherited ? [...inherited.input] : ["text", "image"],
+      ...(inherited?.inputLimits ? { inputLimits: inherited.inputLimits } : {}),
+      ...(inherited?.promptCache ? { promptCache: inherited.promptCache } : {}),
+      cost: inherited
+        ? scaleCost(inherited.cost, costMultiplier)
+        : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: limits.contextWindow,
+      maxTokens: limits.maxTokens,
+      ...(adaptive ? { compat: { forceAdaptiveThinking: true } } : {}),
+    };
+  });
+}
+
+function mergeMetadata(
+  preferred: readonly ModelMetadata[],
+  fallback: readonly ModelMetadata[],
+): ModelMetadata[] {
+  const seen = new Set<string>();
+  return [...preferred, ...fallback].filter((model) => {
+    const key = canonicalModelId(model.id);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function catalogScope(exactModelIds: string[] | undefined, hints: string[]): string {
+  const ids = exactModelIds ?? hints;
+  const prefix = exactModelIds ? "exact" : CATALOG_SCOPE;
+  return ids.length ? `${prefix}:${ids.map((id) => canonicalModelId(id)).join(",")}` : prefix;
+}
+
+async function refreshProviderModels(
+  context: RefreshModelsContext,
+  exactModelIds: string[] | undefined,
+  hints: string[],
+  fallbackModelIds: string[],
+  bundledMetadata: ModelMetadata[],
+  modelLimitsOverrides: Record<string, ModelLimitsOverride>,
+  runtimeConfig: RuntimeConfig,
+): Promise<ModelMetadata[]> {
+  const stored = context.stored;
+  let cached: ModelMetadata[] = [];
+  let cacheValid = true;
+  try {
+    if (stored?.models.length) cached = parseCatalog(stored.models);
+  } catch (error) {
+    cacheValid = false;
+    if (debugWarningsEnabled()) {
+      console.warn(
+        `[agent-platform-anthropic] Ignoring malformed cached model metadata: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  const scope = catalogScope(exactModelIds, hints);
+  const scopeMatches = cacheValid && stored?.etag === scope;
+  const inherited = scopeMatches
+    ? mergeMetadata(cached, bundledMetadata)
+    : mergeMetadata(bundledMetadata, cached);
+  const cachedIds =
+    exactModelIds ??
+    dedupeModelIds([
+      ...(scopeMatches && cached.length ? cached.map((model) => model.id) : fallbackModelIds),
+      ...hints,
+    ]);
+  const build = (ids: string[], metadata: ModelMetadata[]) =>
+    buildProviderModels(
+      ids,
+      metadata,
+      modelLimitsOverrides,
+      modelCostMultiplier(runtimeConfig.endpointProfiles.multi?.location),
+      exactModelIds !== undefined,
+    );
+  const fallback = build(cachedIds, inherited);
+
+  if (!context.allowNetwork || context.signal?.aborted) return fallback;
+  if (
+    !context.force &&
+    scopeMatches &&
+    stored?.checkedAt !== undefined &&
+    Date.now() - stored.checkedAt < CATALOG_MAX_AGE_MS
+  ) {
+    return fallback;
+  }
+
+  let remote: ModelMetadata[];
+  try {
+    const response = await fetch(PI_CATALOG_URL, {
+      headers: { Accept: "application/json" },
+      signal: context.signal,
+    });
+    if (!response.ok)
+      throw new Error(`Pi Anthropic model catalog request failed: ${response.status}`);
+    remote = parseCatalog(await response.json());
+  } catch (error) {
+    if (context.signal?.aborted) return fallback;
+    throw error;
+  }
+  if (context.signal?.aborted) return fallback;
+
+  const requestedIds =
+    exactModelIds ?? dedupeModelIds([...remote.map((model) => model.id), ...hints]);
+  const forcedIds = new Set((exactModelIds ?? hints).map((id) => canonicalModelId(id)));
+  const metadata: ModelMetadata[] = [];
+  const includedIds: string[] = [];
+  for (const requestedId of requestedIds) {
+    const matched = findMetadata(requestedId, remote);
+    if (!matched && !forcedIds.has(canonicalModelId(requestedId))) continue;
+    const id = exactModelIds ? requestedId : normalizePiModelId(requestedId);
+    const source = matched ?? findMetadata(requestedId, inherited);
+    metadata.push(source ? { ...source, id } : fallbackModelMetadata(id));
+    includedIds.push(requestedId);
+  }
+
+  const published = await context.publish({
+    persist: {
+      models: metadata.map((model): Model<Api> => ({
+        ...model,
+        provider: PROVIDER_ID,
+        api: PROVIDER_API,
+        baseUrl: PROVIDER_BASE_URL,
+      })),
+      checkedAt: Date.now(),
+      etag: scope,
+    },
+  });
+  if (!published) return fallback;
+  return build(
+    exactModelIds ? includedIds : dedupeModelIds(includedIds),
+    mergeMetadata(metadata, bundledMetadata),
+  );
 }
 
 export default function (pi: ExtensionAPI) {
@@ -1282,38 +1546,48 @@ export default function (pi: ExtensionAPI) {
     };
   });
 
-  const modelIds = parseModelListFromEnv();
+  const exactModelIds = parseModelList(envFirst("AGENT_PLATFORM_ANTHROPIC_MODELS"));
+  const hints = parseAnthropicModelHints();
   const modelLimitsOverrides = parseModelLimitsOverrides();
 
   const runtimeConfig: RuntimeConfig = {
     endpointProfiles: resolveEndpointProfiles(),
     endpointOverrides: parseModelEndpointOverrides(),
   };
+  const bundledMetadata = bundledPiAnthropicMetadata();
+  const fallbackModelIds =
+    exactModelIds ?? dedupe([...hints, ...bundledMetadata.map((model) => model.id)]);
+  const baseline = buildProviderModels(
+    fallbackModelIds,
+    bundledMetadata,
+    modelLimitsOverrides,
+    modelCostMultiplier(runtimeConfig.endpointProfiles.multi?.location),
+    exactModelIds !== undefined,
+  );
 
-  const models = modelIds.map((id) => {
-    const limits = resolveModelLimits(id, modelLimitsOverrides);
-    return {
-      id,
-      name: resolveModelDisplayName(id),
-      reasoning: true,
-      thinkingLevelMap: usesAdaptiveThinking(id) ? ADAPTIVE_THINKING_LEVEL_MAP : undefined,
-      input: ["text", "image"],
-      cost: resolveModelCost(id),
-      contextWindow: limits.contextWindow,
-      maxTokens: limits.maxTokens,
-    };
-  });
+  const streamSimple = (
+    model: Model<Api>,
+    context: TranscriptContext,
+    options?: SimpleStreamOptions,
+  ) => streamAgentPlatformAnthropic(model, context, options, runtimeConfig);
 
-  const streamSimple = (model: Model<Api>, context: TranscriptContext, options?: SimpleStreamOptions) =>
-    streamAgentPlatformAnthropic(model, context, options, runtimeConfig);
-
-  pi.registerProvider("agent-platform-anthropic", {
+  pi.registerProvider(PROVIDER_ID, {
     name: "Gemini Enterprise Agent Platform Anthropic",
     // Dummy apiKey keeps provider selectable; actual auth comes from ADC via gcloud token retrieval.
     apiKey: "agent-platform-adc",
-    api: "agent-platform-anthropic-api",
-    baseUrl: "https://aiplatform.googleapis.com/v1",
-    models,
+    api: PROVIDER_API,
+    baseUrl: PROVIDER_BASE_URL,
+    models: baseline,
+    refreshModels: (context) =>
+      refreshProviderModels(
+        context,
+        exactModelIds,
+        hints,
+        fallbackModelIds,
+        bundledMetadata,
+        modelLimitsOverrides,
+        runtimeConfig,
+      ),
     streamSimple,
   });
 }
