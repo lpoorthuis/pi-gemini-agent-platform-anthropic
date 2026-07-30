@@ -5,6 +5,15 @@
 - Migrated the custom provider to pi 0.86's `TranscriptContext` API, restoring system prompts and harness tool declarations in outgoing requests.
 - Folded mid-conversation system updates into Anthropic's top-level prompt and resolved tool additions, removals, and redefinitions.
 - Required pi packages version 0.86.0 or newer and added offline request-level regression tests.
+- Added dynamic projection of every model in pi's Anthropic catalog into Google Agent Platform.
+- Inherited model names, modalities, limits, costs, reasoning levels, and adaptive-thinking behavior from pi.
+- Added cached/offline catalogs and EU/US/global cost adjustment while preserving exact model overrides.
+- Removed hardcoded per-model names, limits, costs, and routing tables except Google-specific multi-region routing exceptions.
+- Documented that newly released Anthropic models can appear before Google finishes rolling them out; model enablement and quota remain user-managed, without Google discovery probes.
+- Rebased dynamic loading onto the transcript migration and migrated catalog persistence to pi's generation-checked `context.stored` / `context.publish()` API.
+- Required pi 0.87.0+ and inherited model image limits and short prompt-cache lifetimes, without advertising unsupported direct-Anthropic transport capabilities.
+- Clamped reasoning to pi's supported levels, including models that disallow thinking off, and preserved explicit 1M alias limits and bundled metadata for configured models missing from a remote catalog.
+- Added offline discovery/request tests, real `ModelRuntime` refresh/cache/cancellation regression tests, and a TypeScript check.
 
 ## 0.6.0
 
