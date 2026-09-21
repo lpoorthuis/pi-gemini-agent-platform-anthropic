@@ -4,8 +4,11 @@ import {
   type AssistantMessage,
   type AssistantMessageEventStream,
   calculateCost,
-  type Context,
+  collapseSystemMessages,
   createAssistantMessageEventStream,
+  getCurrentSystemPrompt,
+  getCurrentTools,
+  type TranscriptContext,
   type ImageContent,
   type Message,
   type Model,
@@ -927,7 +930,7 @@ async function postAgentPlatformStreamWithFallback(
 
 function streamAgentPlatformAnthropic(
   model: Model<Api>,
-  context: Context,
+  context: TranscriptContext,
   options: SimpleStreamOptions | undefined,
   runtimeConfig: RuntimeConfig,
 ): AssistantMessageEventStream {
@@ -953,6 +956,10 @@ function streamAgentPlatformAnthropic(
     };
 
     try {
+      // Anthropic carries one top-level system prompt; replay transcript updates first.
+      const transcript = collapseSystemMessages(context);
+      const systemPrompt = getCurrentSystemPrompt(transcript.messages);
+      const tools = getCurrentTools(transcript.messages);
       const project = resolveProjectId();
 
       const endpoints = resolveEndpointOrderForModel(
@@ -981,12 +988,12 @@ function streamAgentPlatformAnthropic(
 
       const body: any = {
         anthropic_version: ANTHROPIC_VERSION,
-        messages: convertMessages(context.messages),
+        messages: convertMessages(transcript.messages),
         max_tokens: maxTokens,
         stream: true,
       };
-      if (context.systemPrompt) body.system = sanitizeSurrogates(context.systemPrompt);
-      if (context.tools?.length) body.tools = convertTools(context.tools);
+      if (systemPrompt) body.system = sanitizeSurrogates(systemPrompt);
+      if (tools.length > 0) body.tools = convertTools(tools);
       addPromptCaching(body);
 
       if (options?.reasoning && model.reasoning) {
@@ -1297,7 +1304,7 @@ export default function (pi: ExtensionAPI) {
     };
   });
 
-  const streamSimple = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) =>
+  const streamSimple = (model: Model<Api>, context: TranscriptContext, options?: SimpleStreamOptions) =>
     streamAgentPlatformAnthropic(model, context, options, runtimeConfig);
 
   pi.registerProvider("agent-platform-anthropic", {

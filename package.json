@@ -17,11 +17,11 @@
     "prettier:check": "npm run format:check",
     "lint": "npx oxlint extensions",
     "lint:fix": "npx oxlint --fix extensions",
-    "test": "node -e \"console.log('No tests configured')\""
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-ai": ">=0.86.0",
+    "@earendil-works/pi-coding-agent": ">=0.86.0"
   },
   "pi": {
     "extensions": [

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Migrated the custom provider to pi 0.86's `TranscriptContext` API, restoring system prompts and harness tool declarations in outgoing requests.
+- Folded mid-conversation system updates into Anthropic's top-level prompt and resolved tool additions, removals, and redefinitions.
+- Required pi packages version 0.86.0 or newer and added offline request-level regression tests.
+
 ## 0.6.0
 
 - Added `claude-opus-5` to the default Agent Platform Anthropic model list.

@@ -41,6 +41,7 @@ pi --provider agent-platform-anthropic --model claude-sonnet-4.6
 
 ## Requirements
 
+- Pi and `@earendil-works/pi-ai` version **0.86.0 or newer** (transcript-backed system prompts and tools)
 - Agent Platform API (`aiplatform.googleapis.com`) enabled in your Google Cloud project
 - Claude partner models enabled from their Agent Platform / Model Garden model cards
 - `gcloud` CLI installed and available in `PATH`
@@ -138,6 +139,12 @@ The extension uses each model's built-in routing order. Most models prefer the c
 Unknown custom models default to a conservative 200,000-token context window and 64,000 max output tokens unless overridden with `AGENT_PLATFORM_ANTHROPIC_MODEL_LIMITS`.
 
 For reasoning, `claude-opus-5`, `claude-opus-4.8`, `claude-opus-4.7`, and `claude-sonnet-5` use the current Agent Platform adaptive thinking format (`thinking.type: adaptive` plus `output_config.effort`). Their pi `xhigh` level maps to Agent Platform effort `max`; `minimal` and `low` map to `low`. Other Claude models use Anthropic `thinking.type: enabled` with `budget_tokens`.
+
+## Development tests
+
+With Node.js 22.6+ and the peer dependencies installed (`npm install`), run `npm test`.
+The tests capture outgoing requests with mocked HTTP responses; no Google credentials or live API calls are required.
+They cover system-prompt sections, tool declarations, mid-conversation updates, and empty/removed tools.
 
 ## Versioning and updates
 
