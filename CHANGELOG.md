@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
+- Fixed 400 `tool_use.id` pattern errors after switching models mid-session: tool call ids from other providers (e.g. OpenAI Responses' `call_…|…` ids) are now normalized to `^[a-zA-Z0-9_-]{1,64}$`, with matching `tool_result` ids and collision-safe suffixes.
+- Replayed signed and redacted thinking only to the model that produced it; thinking from other models is sent as plain text, and redacted thinking from other models is dropped.
 - Migrated the custom provider to pi 0.86's `TranscriptContext` API, restoring system prompts and harness tool declarations in outgoing requests.
 - Folded mid-conversation system updates into Anthropic's top-level prompt and resolved tool additions, removals, and redefinitions.
 - Required pi packages version 0.86.0 or newer and added offline request-level regression tests.

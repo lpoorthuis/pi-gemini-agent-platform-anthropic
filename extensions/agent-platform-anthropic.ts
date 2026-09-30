@@ -348,8 +348,43 @@ function convertContentBlocks(content: (TextContent | ImageContent)[]) {
   return blocks;
 }
 
-function convertMessages(messages: Message[]) {
+const ANTHROPIC_TOOL_ID_MAX_LENGTH = 64;
+
+/**
+ * Anthropic requires tool ids matching ^[a-zA-Z0-9_-]+$ (max 64 chars), but sessions may
+ * contain ids from other providers, e.g. OpenAI Responses' `call_…|<encrypted>` ids.
+ * Keeps one mapping per request so tool_use and tool_result stay paired, and
+ * disambiguates the rare case where two ids collapse to the same safe id.
+ */
+function createToolIdNormalizer(): (id: string) => string {
+  const byOriginal = new Map<string, string>();
+  const used = new Set<string>();
+
+  return (id: string) => {
+    const existing = byOriginal.get(id);
+    if (existing) return existing;
+
+    const base =
+      id.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, ANTHROPIC_TOOL_ID_MAX_LENGTH) || "tool";
+    let candidate = base;
+    for (let n = 1; used.has(candidate); n++) {
+      const suffix = `_${n}`;
+      candidate = base.slice(0, ANTHROPIC_TOOL_ID_MAX_LENGTH - suffix.length) + suffix;
+    }
+
+    byOriginal.set(id, candidate);
+    used.add(candidate);
+    return candidate;
+  };
+}
+
+function isSameModelMessage(msg: AssistantMessage, model: Model<Api>): boolean {
+  return msg.provider === model.provider && msg.api === model.api && msg.model === model.id;
+}
+
+function convertMessages(messages: Message[], model: Model<Api>) {
   const params: any[] = [];
+  const normalizeToolId = createToolIdNormalizer();
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -379,11 +414,21 @@ function convertMessages(messages: Message[]) {
       }
     } else if (msg.role === "assistant") {
       const blocks: any[] = [];
+      // Thinking signatures are only valid for the model that produced them.
+      const sameModel = isSameModelMessage(msg, model);
       for (const block of msg.content) {
         if (block.type === "text" && block.text.trim()) {
           blocks.push({ type: "text", text: sanitizeSurrogates(block.text) });
+        } else if (block.type === "thinking" && (block as ThinkingContent).redacted) {
+          // Opaque encrypted payload: replayable only to the originating model.
+          if (sameModel && (block as ThinkingContent).thinkingSignature) {
+            blocks.push({
+              type: "redacted_thinking",
+              data: (block as ThinkingContent).thinkingSignature,
+            });
+          }
         } else if (block.type === "thinking" && block.thinking.trim()) {
-          if ((block as ThinkingContent).thinkingSignature) {
+          if (sameModel && (block as ThinkingContent).thinkingSignature) {
             blocks.push({
               type: "thinking",
               thinking: sanitizeSurrogates(block.thinking),
@@ -398,7 +443,7 @@ function convertMessages(messages: Message[]) {
         } else if (block.type === "toolCall") {
           blocks.push({
             type: "tool_use",
-            id: block.id,
+            id: normalizeToolId(block.id),
             name: block.name,
             input: block.arguments,
           });
@@ -409,7 +454,7 @@ function convertMessages(messages: Message[]) {
       const toolResults: any[] = [
         {
           type: "tool_result",
-          tool_use_id: msg.toolCallId,
+          tool_use_id: normalizeToolId(msg.toolCallId),
           content: convertContentBlocks(msg.content),
           is_error: msg.isError,
         },
@@ -420,7 +465,7 @@ function convertMessages(messages: Message[]) {
         const nextMsg = messages[j] as ToolResultMessage;
         toolResults.push({
           type: "tool_result",
-          tool_use_id: nextMsg.toolCallId,
+          tool_use_id: normalizeToolId(nextMsg.toolCallId),
           content: convertContentBlocks(nextMsg.content),
           is_error: nextMsg.isError,
         });
@@ -1063,7 +1108,7 @@ function streamAgentPlatformAnthropic(
 
       const body: Record<string, unknown> = {
         anthropic_version: ANTHROPIC_VERSION,
-        messages: convertMessages(transcript.messages),
+        messages: convertMessages(transcript.messages, model),
         max_tokens: maxTokens,
         stream: true,
       };
