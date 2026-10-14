@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking:** authentication now uses a Google service account key via `/login agent-platform-anthropic`, replacing ADC and `gcloud`. Project comes from the key's `project_id`; location (`eu`, `us`, `global`) is chosen at login. Tokens are minted with the JWT bearer grant and refreshed by pi; only the key path is stored.
+- **Breaking:** removed all environment configuration (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_OAUTH_ACCESS_TOKEN`, every `AGENT_PLATFORM_ANTHROPIC_*` variable, and the `ANTHROPIC_DEFAULT_*` model hints).
+- Models are now pi's own Anthropic catalog with no separate catalog fetch, cache, or overrides.
+- Requests reuse pi's built-in Anthropic Messages implementation, rerouted to Agent Platform `streamRawPredict` through a custom `fetch`. This removes the custom message conversion, SSE parser, thinking, caching, and overflow handling (~1,450 lines), and brings pi features such as strict tools, mid-conversation effort, retries, and request hooks.
+
 ## 0.7.0
 
 - Fixed 400 `tool_use.id` pattern errors after switching models mid-session: tool call ids from other providers (e.g. OpenAI Responses' `call_…|…` ids) are now normalized to `^[a-zA-Z0-9_-]{1,64}$`, with matching `tool_result` ids and collision-safe suffixes.
