@@ -18,12 +18,64 @@ test("startup models are pi's bundled Anthropic catalog, unchanged", () => {
   assert.equal(opus.baseUrl, undefined);
 });
 
-test("session start adopts pi's refreshed Anthropic catalog, ignoring other providers", () => {
-  const future = { ...getBuiltinModels("anthropic")[0], id: "claude-future-9", name: "Claude Future 9" };
-  const other = { ...future, id: "gpt-x", provider: "openai", api: "openai-responses" };
-  const { provider, registrations } = load([future, other]);
-  assert.equal(registrations.length, 2);
-  assert.deepEqual(provider.models.map((m) => m.id), ["claude-future-9"]);
+const storedCredential = {
+  type: "oauth", refresh: "/unused/key.json", access: "ya29.stored", expires: Date.now() + 3600_000,
+  projectId: "sa-project", location: "eu", clientEmail: "sa@example.com",
+};
+const priced = (value) => Math.round(value * 1.1 * 1e9) / 1e9;
+
+async function createRuntime(modelsStore = new InMemoryModelsStore()) {
+  const credentials = new InMemoryCredentialStore();
+  await credentials.modify(providerId, async () => storedCredential);
+  return ModelRuntime.create({ credentials, modelsStore, modelsPath: null, refreshOnCreate: false });
+}
+
+const futureModel = () => ({
+  ...getBuiltinModels("anthropic")[0], id: "claude-future-9", name: "Claude Future 9",
+});
+
+test("session start never re-registers; live catalog is priced in the real runtime", async () => {
+  const { provider, registrations, fireSessionStart } = load();
+  const runtime = await createRuntime();
+  runtime.registerProvider(providerId, provider);
+  await runtime.refresh({ providers: [providerId], allowNetwork: false });
+  const base = getBuiltinModels("anthropic").find((m) => m.id === "claude-sonnet-4-6");
+  assert.equal(runtime.getModel(providerId, "claude-sonnet-4-6").cost.input, priced(base.cost.input));
+
+  const other = { ...futureModel(), id: "gpt-x", provider: "openai", api: "openai-responses" };
+  fireSessionStart([futureModel(), other]);
+  await runtime.refresh({ providers: [providerId], allowNetwork: false });
+
+  assert.equal(registrations.length, 1);
+  assert.equal(runtime.getModel(providerId, "claude-sonnet-4-6").cost.input, priced(base.cost.input));
+  const future = runtime.getModel(providerId, "claude-future-9");
+  assert.ok(future);
+  assert.equal(future.cost.input, priced(futureModel().cost.input));
+  assert.equal(runtime.getModel(providerId, "gpt-x"), undefined);
+});
+
+test("persisted catalog restores remote-only models on a fresh load without session start", async () => {
+  const modelsStore = new InMemoryModelsStore();
+  const first = load();
+  const firstRuntime = await createRuntime(modelsStore);
+  firstRuntime.registerProvider(providerId, first.provider);
+  first.fireSessionStart([futureModel()]);
+  await firstRuntime.refresh({ providers: [providerId], allowNetwork: false });
+
+  const second = load();
+  const secondRuntime = await createRuntime(modelsStore);
+  secondRuntime.registerProvider(providerId, second.provider);
+  await secondRuntime.refresh({ providers: [providerId], allowNetwork: false });
+  assert.ok(secondRuntime.getModel(providerId, "claude-future-9"));
+  assert.ok(secondRuntime.getModel(providerId, "claude-sonnet-4-6"));
+  assert.equal(second.registrations.length, 1);
+});
+
+test("firing session start repeatedly causes no extra registrations", () => {
+  const { registrations, fireSessionStart } = load();
+  fireSessionStart([futureModel()]);
+  fireSessionStart([futureModel()], "new");
+  assert.equal(registrations.length, 1);
 });
 
 test("costs follow the logged-in location: +10% for eu/us, list price for global", () => {

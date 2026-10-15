@@ -6,6 +6,7 @@ import type {
   Api,
   AssistantMessageEventStream,
   Model,
+  RefreshModelsContext,
   SimpleStreamOptions,
   TranscriptContext,
 } from "@earendil-works/pi-ai";
@@ -13,7 +14,7 @@ import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-a
 import { builtinProviders, getBuiltinModels } from "@earendil-works/pi-ai/providers/all";
 import type {
   ExtensionAPI,
-  ProviderConfig,
+  ModelRegistry,
   ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 
@@ -345,12 +346,49 @@ function priceForLocation(models: Model<Api>[], credentials: OAuthCredentials): 
   }));
 }
 
+function mergeById(
+  bundled: ProviderModelConfig[],
+  source: ProviderModelConfig[],
+): ProviderModelConfig[] {
+  const merged = new Map(bundled.map((model) => [model.id, model]));
+  for (const model of source) merged.set(model.id, model);
+  return [...merged.values()];
+}
+
 export default function (pi: ExtensionAPI) {
-  const config = (models: ProviderModelConfig[]): ProviderConfig => ({
+  const bundledModels = projectAnthropicModels(getBuiltinModels("anthropic"));
+  // Captured in session_start; refreshModels cannot reach the registry on its own.
+  let modelRegistry: ModelRegistry | undefined;
+
+  /** Source priority: pi's live catalog, then our persisted projection, then the bundled list. */
+  async function refreshModels(context: RefreshModelsContext): Promise<ProviderModelConfig[]> {
+    if (context.signal.aborted) return bundledModels;
+    const live = projectAnthropicModels(modelRegistry?.getProvider("anthropic")?.getModels() ?? []);
+    if (live.length > 0) {
+      const models = mergeById(bundledModels, live).map((model): Model<Api> => ({
+        ...model,
+        provider: PROVIDER_ID,
+        api: PROVIDER_API,
+        baseUrl: PROVIDER_BASE_URL,
+      }));
+      await context.publish({ persist: { models, checkedAt: Date.now() } });
+      return mergeById(bundledModels, live);
+    }
+    const stored = (context.stored?.models ?? [])
+      .filter((model) => model.provider === PROVIDER_ID && model.api === PROVIDER_API)
+      .map(
+        ({ provider: _provider, api: _api, baseUrl: _baseUrl, headers: _headers, ...model }) =>
+          model,
+      );
+    return mergeById(bundledModels, stored);
+  }
+
+  pi.registerProvider(PROVIDER_ID, {
     name: "Google Agent Platform (Anthropic)",
     api: PROVIDER_API,
     baseUrl: PROVIDER_BASE_URL,
-    models,
+    models: bundledModels,
+    refreshModels,
     streamSimple,
     oauth: {
       name: "Google service account key (Agent Platform)",
@@ -361,11 +399,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // Bundled catalog for startup; replaced by pi's refreshed Anthropic catalog once a session starts.
-  pi.registerProvider(PROVIDER_ID, config(projectAnthropicModels(getBuiltinModels("anthropic"))));
-
   pi.on("session_start", (_event, ctx) => {
-    const models = projectAnthropicModels(ctx.modelRegistry.getAll());
-    if (models.length > 0) pi.registerProvider(PROVIDER_ID, config(models));
+    modelRegistry = ctx.modelRegistry;
   });
 }

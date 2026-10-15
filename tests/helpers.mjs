@@ -7,20 +7,22 @@ import register from "../extensions/agent-platform-anthropic.ts";
 
 export const providerId = "agent-platform-anthropic";
 
-/** Loads the extension against a minimal fake ExtensionAPI. */
-export function load(registryModels) {
+/**
+ * Loads the extension against a minimal fake ExtensionAPI. `fireSessionStart(models)` simulates
+ * pi's session_start with a registry whose live Anthropic catalog is `models`.
+ */
+export function load() {
   const registrations = [];
   const handlers = {};
   register({
     on(event, handler) { handlers[event] = handler; },
     registerProvider(id, config) { assert.equal(id, providerId); registrations.push(config); },
   });
-  if (registryModels) {
-    handlers.session_start({ type: "session_start", reason: "startup" }, {
-      modelRegistry: { getAll: () => registryModels },
+  const fireSessionStart = (models = [], reason = "startup") =>
+    handlers.session_start({ type: "session_start", reason }, {
+      modelRegistry: { getProvider: (id) => (id === "anthropic" ? { getModels: () => models } : undefined) },
     });
-  }
-  return { provider: registrations.at(-1), registrations };
+  return { provider: registrations[0], registrations, fireSessionStart };
 }
 
 export function writeKey(t, overrides = {}) {

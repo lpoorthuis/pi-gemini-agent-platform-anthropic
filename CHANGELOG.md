@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed session costs reported at list price after startup, /new, and resume; the provider is registered once and pi's refreshed Anthropic catalog is delivered through `refreshModels`.
 - **Breaking:** authentication now uses a Google service account key via `/login agent-platform-anthropic`, replacing ADC and `gcloud`. Project comes from the key's `project_id`; location (`eu`, `us`, `global`) is chosen at login. Tokens are minted with the JWT bearer grant and refreshed by pi; only the key path is stored.
 - **Breaking:** removed all environment configuration (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_OAUTH_ACCESS_TOKEN`, every `AGENT_PLATFORM_ANTHROPIC_*` variable, and the `ANTHROPIC_DEFAULT_*` model hints).
 - Models are now pi's own Anthropic catalog with no separate catalog fetch, cache, or overrides.
