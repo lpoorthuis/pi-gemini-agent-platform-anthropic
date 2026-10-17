@@ -19,7 +19,9 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 const PROVIDER_ID = "agent-platform-anthropic";
-const PROVIDER_API = "agent-platform-anthropic-api";
+// The provider owns auth/routing; the API identity must match the delegated wire protocol.
+const PROVIDER_API = "anthropic-messages";
+const LEGACY_PROVIDER_API = "agent-platform-anthropic-api";
 const PROVIDER_BASE_URL = "https://aiplatform.googleapis.com";
 /**
  * Fixed wire value required by Agent Platform's Anthropic endpoint. It predates the
@@ -269,7 +271,7 @@ function publisherModelId(modelId: string): string {
 function agentPlatformFetch(auth: RequestAuth, baseFetch: typeof fetch): typeof fetch {
   return async (_input, init) => {
     if (typeof init?.body !== "string") throw new Error("Unexpected Anthropic request body.");
-    const { model, ...body }: Record<string, unknown> = JSON.parse(init.body);
+    const { model, messages, ...body }: Record<string, unknown> = JSON.parse(init.body);
     if (!nonEmptyString(model)) throw new Error("Anthropic request has no model.");
 
     const headers = new Headers(init.headers);
@@ -278,7 +280,13 @@ function agentPlatformFetch(auth: RequestAuth, baseFetch: typeof fetch): typeof 
     const request: RequestInit = {
       ...init,
       headers,
-      body: JSON.stringify({ ...body, anthropic_version: AGENT_PLATFORM_ANTHROPIC_VERSION }),
+      // Google prefix-cache reuse is sensitive to wire key order. Keep the stable
+      // request fields before the growing history, without changing JSON values.
+      body: JSON.stringify({
+        ...body,
+        anthropic_version: AGENT_PLATFORM_ANTHROPIC_VERSION,
+        messages,
+      }),
     };
 
     const locations = LOCATIONS[auth.location];
@@ -303,7 +311,21 @@ function streamSimple(
 ): AssistantMessageEventStream {
   if (!anthropic) throw new Error("pi's built-in Anthropic provider is unavailable.");
   const auth = decodeRequestAuth(options?.apiKey);
-  return anthropic.streamSimple(model, context, {
+  // Old sessions used a custom API identity. Normalize only our own messages so pi
+  // restores historical effort markers and retains same-model thinking signatures.
+  // Do not mutate the persisted transcript or relabel messages from other providers.
+  const nativeContext: TranscriptContext = {
+    ...context,
+    messages: context.messages.map((message) =>
+      message.role === "assistant" &&
+      message.provider === PROVIDER_ID &&
+      message.api === LEGACY_PROVIDER_API
+        ? { ...message, api: PROVIDER_API }
+        : message,
+    ),
+  };
+  const nativeModel = model.api === PROVIDER_API ? model : { ...model, api: PROVIDER_API };
+  return anthropic.streamSimple(nativeModel, nativeContext, {
     ...options,
     apiKey: auth.accessToken,
     fetch: agentPlatformFetch(auth, options?.fetch ?? globalThis.fetch),
@@ -314,7 +336,9 @@ function streamSimple(
 // Models: projected from pi's own Anthropic catalog
 // ---------------------------------------------------------------------------
 
-function projectAnthropicModels(models: readonly Model<Api>[]): ProviderModelConfig[] {
+type AnthropicModelConfig = Omit<Model<Api>, "provider" | "api" | "baseUrl" | "headers">;
+
+function projectAnthropicModels(models: readonly Model<Api>[]): AnthropicModelConfig[] {
   return models
     .filter((model) => model.provider === "anthropic" && model.api === "anthropic-messages")
     .map(
@@ -346,10 +370,7 @@ function priceForLocation(models: Model<Api>[], credentials: OAuthCredentials): 
   }));
 }
 
-function mergeById(
-  bundled: ProviderModelConfig[],
-  source: ProviderModelConfig[],
-): ProviderModelConfig[] {
+function mergeById<T extends ProviderModelConfig>(bundled: T[], source: T[]): T[] {
   const merged = new Map(bundled.map((model) => [model.id, model]));
   for (const model of source) merged.set(model.id, model);
   return [...merged.values()];
@@ -375,7 +396,11 @@ export default function (pi: ExtensionAPI) {
       return mergeById(bundledModels, live);
     }
     const stored = (context.stored?.models ?? [])
-      .filter((model) => model.provider === PROVIDER_ID && model.api === PROVIDER_API)
+      .filter(
+        (model) =>
+          model.provider === PROVIDER_ID &&
+          (model.api === PROVIDER_API || model.api === LEGACY_PROVIDER_API),
+      )
       .map(
         ({ provider: _provider, api: _api, baseUrl: _baseUrl, headers: _headers, ...model }) =>
           model,

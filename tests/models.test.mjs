@@ -71,6 +71,41 @@ test("persisted catalog restores remote-only models on a fresh load without sess
   assert.equal(second.registrations.length, 1);
 });
 
+test("persisted catalogs using the legacy API identity still restore remote-only models", async () => {
+  const { provider } = load();
+  const legacy = { ...futureModel(), provider: providerId, api: "agent-platform-anthropic-api" };
+  const models = await provider.refreshModels({
+    signal: new AbortController().signal,
+    stored: { models: [legacy], checkedAt: 1 },
+    publish: async () => assert.fail("offline restoration should not publish a new catalog"),
+  });
+  const restored = models.find((model) => model.id === legacy.id);
+  assert.ok(restored);
+  assert.equal(restored.api, undefined, "the restored model inherits the provider's native API");
+  assert.equal(provider.api, "anthropic-messages");
+});
+
+test("using the native API identity does not reroute the built-in Anthropic provider", async (t) => {
+  const { provider } = load();
+  const runtime = await createRuntime();
+  runtime.registerProvider(providerId, provider);
+  await runtime.refresh({ providers: [providerId], allowNetwork: false });
+  const native = runtime.getModel("anthropic", "claude-sonnet-4-6");
+  let request;
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    request = { url: String(url), headers: new Headers(init.headers) };
+    return okStream();
+  });
+  const result = await runtime.streamSimple(native, {
+    messages: [{ role: "user", content: "ping", timestamp: 0 }],
+  }, { apiKey: "sk-ant-offline", maxRetries: 0 }).result();
+
+  assert.equal(result.stopReason, "stop", result.errorMessage);
+  assert.equal(result.provider, "anthropic");
+  assert.equal(new URL(request.url).host, "api.anthropic.com");
+  assert.equal(request.headers.get("x-api-key"), "sk-ant-offline");
+});
+
 test("firing session start repeatedly causes no extra registrations", () => {
   const { registrations, fireSessionStart } = load();
   fireSessionStart([futureModel()]);

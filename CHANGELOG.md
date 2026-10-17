@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Improved Google prefix-cache reuse by serializing stable request fields before the growing `messages` history. Live paired probes reproduced cache misses from JSON member order alone; request values, thinking markers, authentication, and endpoints are unchanged.
+- Fixed historical thinking-effort replay by identifying the delegated API as `anthropic-messages`. Earlier sessions and cached catalogs using `agent-platform-anthropic-api` are normalized on read without changing persisted transcripts; signed/redacted thinking and historical effort markers are preserved.
 - Fixed session costs reported at list price after startup, /new, and resume; the provider is registered once and pi's refreshed Anthropic catalog is delivered through `refreshModels`.
 - **Breaking:** authentication now uses a Google service account key via `/login agent-platform-anthropic`, replacing ADC and `gcloud`. Project comes from the key's `project_id`; location (`eu`, `us`, `global`) is chosen at login. Tokens are minted with the JWT bearer grant and refreshed by pi; only the key path is stored.
 - **Breaking:** removed all environment configuration (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_OAUTH_ACCESS_TOKEN`, every `AGENT_PLATFORM_ANTHROPIC_*` variable, and the `ANTHROPIC_DEFAULT_*` model hints).
