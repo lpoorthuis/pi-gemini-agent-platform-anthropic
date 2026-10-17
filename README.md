@@ -1,4 +1,4 @@
-# agent-platform-anthropic-pi
+# pi-gemini-agent-platform-anthropic
 
 Pi extension that runs pi's Anthropic Claude models through Google Gemini Enterprise Agent Platform, authenticated with a service account key.
 
@@ -7,8 +7,8 @@ Pi extension that runs pi's Anthropic Claude models through Google Gemini Enterp
 ```bash
 pi install .
 pi
-/login agent-platform-anthropic   # enter the service account JSON key path, pick eu / us / global
-/model                            # pick an agent-platform-anthropic model
+/login gemini-agent-platform-anthropic  # enter the service account JSON key path, pick eu / us / global
+/model                                 # pick a gemini-agent-platform-anthropic model
 ```
 
 No environment variables, `gcloud`, or Application Default Credentials are needed.

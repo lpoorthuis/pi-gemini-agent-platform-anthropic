@@ -18,7 +18,7 @@ import type {
   ProviderModelConfig,
 } from "@earendil-works/pi-coding-agent";
 
-const PROVIDER_ID = "agent-platform-anthropic";
+const PROVIDER_ID = "gemini-agent-platform-anthropic";
 // The provider owns auth/routing; the API identity must match the delegated wire protocol.
 const PROVIDER_API = "anthropic-messages";
 const LEGACY_PROVIDER_API = "agent-platform-anthropic-api";
@@ -184,7 +184,7 @@ async function login(callbacks: OAuthLoginCallbacks): Promise<AgentPlatformCrede
     }),
   );
   const selected = await callbacks.onSelect({
-    message: "Agent Platform endpoint",
+    message: "Gemini Agent Platform endpoint",
     options: [
       { id: "eu", label: "EU multi-region (fallback europe-west1)" },
       { id: "us", label: "US multi-region (fallback us-east5)" },
@@ -239,7 +239,7 @@ function decodeRequestAuth(apiKey: string | undefined): RequestAuth {
     !nonEmptyString(parsed.accessToken)
   ) {
     throw new Error(
-      `Missing Google Agent Platform credentials. Run "/login ${PROVIDER_ID}" and enter the path to a service account JSON key.`,
+      `Missing Gemini Agent Platform credentials. Run "/login ${PROVIDER_ID}" and enter the path to a service account JSON key.`,
     );
   }
   return {
@@ -409,14 +409,14 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.registerProvider(PROVIDER_ID, {
-    name: "Google Agent Platform (Anthropic)",
+    name: "Gemini Agent Platform (Anthropic)",
     api: PROVIDER_API,
     baseUrl: PROVIDER_BASE_URL,
     models: bundledModels,
     refreshModels,
     streamSimple,
     oauth: {
-      name: "Google service account key (Agent Platform)",
+      name: "Google service account key (Gemini Agent Platform)",
       login,
       refreshToken,
       getApiKey,

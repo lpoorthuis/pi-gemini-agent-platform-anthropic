@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.8.0
+
+- **Breaking:** renamed the package to `pi-gemini-agent-platform-anthropic` and the registered provider to `gemini-agent-platform-anthropic`.
 - Improved Google prefix-cache reuse by serializing stable request fields before the growing `messages` history. Live paired probes reproduced cache misses from JSON member order alone; request values, thinking markers, authentication, and endpoints are unchanged.
 - Fixed historical thinking-effort replay by identifying the delegated API as `anthropic-messages`. Earlier sessions and cached catalogs using `agent-platform-anthropic-api` are normalized on read without changing persisted transcripts; signed/redacted thinking and historical effort markers are preserved.
 - Fixed session costs reported at list price after startup, /new, and resume; the provider is registered once and pi's refreshed Anthropic catalog is delivered through `refreshModels`.
-- **Breaking:** authentication now uses a Google service account key via `/login agent-platform-anthropic`, replacing ADC and `gcloud`. Project comes from the key's `project_id`; location (`eu`, `us`, `global`) is chosen at login. Tokens are minted with the JWT bearer grant and refreshed by pi; only the key path is stored.
+- **Breaking:** authentication now uses a Google service account key via `/login gemini-agent-platform-anthropic`, replacing ADC and `gcloud`. Project comes from the key's `project_id`; location (`eu`, `us`, `global`) is chosen at login. Tokens are minted with the JWT bearer grant and refreshed by pi; only the key path is stored.
 - **Breaking:** removed all environment configuration (`GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_OAUTH_ACCESS_TOKEN`, every `AGENT_PLATFORM_ANTHROPIC_*` variable, and the `ANTHROPIC_DEFAULT_*` model hints).
 - Models are now pi's own Anthropic catalog with no separate catalog fetch, cache, or overrides.
 - Requests reuse pi's built-in Anthropic Messages implementation, rerouted to Agent Platform `streamRawPredict` through a custom `fetch`. This removes the custom message conversion, SSE parser, thinking, caching, and overflow handling (~1,450 lines), and brings pi features such as strict tools, mid-conversation effort, retries, and request hooks.

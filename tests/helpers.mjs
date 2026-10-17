@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import register from "../extensions/agent-platform-anthropic.ts";
 
-export const providerId = "agent-platform-anthropic";
+export const providerId = "gemini-agent-platform-anthropic";
 
 /**
  * Loads the extension against a minimal fake ExtensionAPI. `fireSessionStart(models)` simulates

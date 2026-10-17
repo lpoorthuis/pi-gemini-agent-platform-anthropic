@@ -121,5 +121,5 @@ test("global location uses the global endpoint only", async (t) => {
 test("missing credentials point to /login without network access", async (t) => {
   const { provider } = load();
   t.mock.method(globalThis, "fetch", () => assert.fail("no request without credentials"));
-  assert.throws(() => send(provider, "claude-sonnet-4-6", { apiKey: undefined }), /\/login agent-platform-anthropic/);
+  assert.throws(() => send(provider, "claude-sonnet-4-6", { apiKey: undefined }), /\/login gemini-agent-platform-anthropic/);
 });

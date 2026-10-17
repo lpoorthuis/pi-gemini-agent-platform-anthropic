@@ -137,6 +137,8 @@ test("real pi runtime: stored service-account credential drives inference end to
 
   const model = runtime.getModel(providerId, "claude-sonnet-4-6");
   assert.ok(model);
+  assert.equal(model.provider, providerId);
+  assert.equal(runtime.getProvider("agent-platform-anthropic"), undefined);
   assert.ok((await runtime.getAvailable(providerId)).some((m) => m.id === model.id));
   const base = getBuiltinModels("anthropic").find((m) => m.id === model.id);
   assert.equal(model.cost.input, Math.round(base.cost.input * 1.1 * 1e9) / 1e9);
@@ -148,6 +150,7 @@ test("real pi runtime: stored service-account credential drives inference end to
   });
   const result = await runtime.complete(model, { messages: [{ role: "user", content: "ping", timestamp: 0 }] });
   assert.equal(result.stopReason, "stop", result.errorMessage);
+  assert.equal(result.provider, providerId);
   assert.equal(request.auth, "Bearer ya29.stored");
   assert.match(request.url, /\/projects\/sa-project\/locations\/eu\//);
 });

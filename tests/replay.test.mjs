@@ -120,6 +120,7 @@ test("resumed legacy messages retain effort and signed/redacted thinking without
 
   assert.equal(result.stopReason, "toolUse", result.errorMessage);
   assert.deepEqual(wireOrder(requests[1]), ["user", "effort:low", "assistant", "user", "effort:high"]);
+  assert.equal(result.provider, providerId);
   assert.equal(result.api, nativeApi);
   const replay = requests[1].messages.find((message) => message.role === "assistant");
   assert.deepEqual(replay.content[0], { type: "thinking", thinking: "Inspect the repository.", signature: "signed_1" });
