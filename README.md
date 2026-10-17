@@ -1,5 +1,8 @@
 # pi-gemini-agent-platform-anthropic
 
+> [!NOTE]
+> This custom provider only enables access to Anthropic partner models on Gemini Agent Platform
+
 Pi extension that runs pi's Anthropic Claude models through Google Gemini Enterprise Agent Platform, authenticated with a service account key.
 
 ## Quick start
