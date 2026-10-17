@@ -1,6 +1,6 @@
 {
   "name": "pi-gemini-agent-platform-anthropic",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "Pi extension package to use Anthropic partner models on Google Gemini Enterprise Agent Platform",
   "keywords": [

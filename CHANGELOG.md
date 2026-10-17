@@ -4,6 +4,10 @@
 
 - No unreleased changes.
 
+## 0.8.1
+
+- Fixed service account key paths starting with `$HOME` or `${HOME}` being treated as literal relative paths; both now expand to the home directory, like `~`.
+
 ## 0.8.0
 
 - **Breaking:** renamed the package to `pi-gemini-agent-platform-anthropic` and the registered provider to `gemini-agent-platform-anthropic`.

@@ -84,7 +84,7 @@ function nonEmptyString(value: unknown): value is string {
 function expandKeyFilePath(raw: string): string {
   const path = raw.trim();
   if (!path) throw new Error("Service account key file path is empty.");
-  return resolvePath(path.replace(/^~(?=$|\/)/, homedir()));
+  return resolvePath(path.replace(/^(?:~|\$HOME|\$\{HOME\})(?=$|\/)/, () => homedir()));
 }
 
 async function readServiceAccountKey(path: string): Promise<ServiceAccountKey> {

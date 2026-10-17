@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createVerify } from "node:crypto";
+import { homedir } from "node:os";
+import { relative } from "node:path";
 import { test } from "node:test";
 import { load, writeKey } from "./helpers.mjs";
 
@@ -43,6 +45,18 @@ test("login exchanges a service account key; project comes from the key, not env
     projectId: "sa-project", location: "us", accessToken: "minted-token",
   });
 });
+
+for (const prefix of ["~", "$HOME", "${HOME}"]) {
+  test(`login expands ${prefix} in service account key paths`, async (t) => {
+    const { provider } = load();
+    const { path, publicKey } = writeKey(t);
+    mockTokenEndpoint(t, publicKey);
+    const input = `  ${prefix}/${relative(homedir(), path)}  `;
+    const credentials = await provider.oauth.login(callbacks(input));
+    assert.equal(credentials.refresh, path, "the expanded absolute path is persisted for refresh");
+    assert.equal(credentials.access, "minted-token");
+  });
+}
 
 test("refresh re-reads the key file, mints a new token and keeps the location", async (t) => {
   const { provider } = load();
